@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI浪潮生存者</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%); min-height: 100vh; color: #e0e0e0; overflow-x: hidden; }
+        #app { min-height: 100vh; display: flex; flex-direction: column; }
+        
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.3s; margin: 8px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-danger { background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); color: white; }
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        
+        .page { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 100vh; }
+        
+        .title { font-size: 2.5em; text-align: center; margin-bottom: 10px; background: linear-gradient(135deg, #667eea, #764ba2, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: glow 2s ease-in-out infinite alternate; }
+        @keyframes glow { from { filter: drop-shadow(0 0 10px rgba(102, 126, 234, 0.5)); } to { filter: drop-shadow(0 0 20px rgba(240, 147, 251, 0.8)); } }
+        .subtitle { font-size: 1.2em; color: #888; margin-bottom: 40px; text-align: center; }
+        .menu { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        
+        .status-bar { display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 12px; margin: 10px; width: 100%; max-width: 600px; justify-content: center; }
+        .status-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .status-icon { font-size: 20px; }
+        .progress-bar { width: 60px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        
+        .dialogue-box { background: rgba(0,0,0,0.5); border-radius: 16px; padding: 20px; margin: 15px; width: 100%; max-width: 600px; border: 1px solid rgba(102, 126, 234, 0.3); animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .speaker { font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .speaker-avatar { font-size: 28px; }
+        .dialogue-text { line-height: 1.8; font-size: 16px; color: #ccc; }
+        
+        .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; width: 100%; max-width: 600px; }
+        .choice-btn { padding: 15px 20px; background: rgba(102, 126, 234, 0.2); border: 1px solid rgba(102, 126, 234, 0.4); border-radius: 10px; color: #fff; cursor: pointer; text-align: left; font-size: 15px; transition: all 0.3s; }
+        .choice-btn:hover { background: rgba(102, 126, 234, 0.4); transform: translateX(5px); }
+        .choice-effect { font-size: 12px; color: #888; margin-top: 5px; }
+        
+        .scene-visual { font-size: 80px; text-align: center; margin: 20px 0; animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        
+        .chapter-title { font-size: 1.5em; color: #667eea; margin: 15px 0; text-align: center; }
+        .chapter-subtitle { color: #888; text-align: center; margin-bottom: 15px; font-size: 14px; }
+        
+        .job-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; width: 100%; max-width: 700px; margin: 15px 0; }
+        .job-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.3s; border: 2px solid transparent; }
+        .job-card:hover { background: rgba(102, 126, 234, 0.2); border-color: #667eea; transform: translateY(-5px); }
+        .job-card.selected { border-color: #667eea; background: rgba(102, 126, 234, 0.3); }
+        .job-icon { font-size: 40px; margin-bottom: 8px; }
+        .job-name { font-size: 1em; font-weight: bold; margin-bottom: 5px; }
+        .job-survival { font-size: 11px; color: #38ef7d; }
+        .job-desc { font-size: 11px; color: #888; margin-top: 8px; }
+        
+        .boss-container { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 15px 0; flex-wrap: wrap; }
+        .player-battle, .boss-battle { text-align: center; }
+        .battle-avatar { font-size: 80px; }
+        .battle-hp { width: 100px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; margin: 8px auto; overflow: hidden; }
+        .battle-hp-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+        .vs-text { font-size: 1.5em; color: #f5576c; font-weight: bold; }
+        
+        .battle-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; max-width: 400px; margin: 15px 0; }
+        .battle-btn { padding: 12px; background: rgba(102, 126, 234, 0.2); border: 1px solid rgba(102, 126, 234, 0.4); border-radius: 8px; color: #fff; cursor: pointer; font-size: 13px; transition: all 0.3s; }
+        .battle-btn:hover { background: rgba(102, 126, 234, 0.4); }
+        .battle-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .battle-log { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin: 10px; width: 100%; max-width: 600px; max-height: 120px; overflow-y: auto; }
+        .log-item { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+        .log-player { color: #38ef7d; }
+        .log-boss { color: #f5576c; }
+        .log-system { color: #667eea; }
+        
+        .ending-container { text-align: center; max-width: 550px; }
+        .ending-badge { font-size: 70px; margin: 15px 0; animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        .ending-title { font-size: 1.8em; margin: 15px 0; background: linear-gradient(135deg, #667eea, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .ending-desc { color: #888; line-height: 1.8; margin: 15px 0; font-size: 14px; }
+        .stats-summary { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 15px; margin: 15px 0; }
+        .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+        
+        .settings-panel { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; margin: 20px; width: 100%; max-width: 450px; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .setting-label { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .toggle { width: 44px; height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px; position: relative; cursor: pointer; transition: all 0.3s; }
+        .toggle.active { background: #667eea; }
+        .toggle::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: all 0.3s; }
+        .toggle.active::after { left: 22px; }
+        
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(102, 126, 234, 0.9); color: white; padding: 10px 20px; border-radius: 8px; z-index: 1000; animation: toastIn 0.3s, toastOut 0.3s 2.7s; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-20px); } }
+        
+        @media (max-width: 600px) {
+            .title { font-size: 1.8em; }
+            .boss-container { flex-direction: column; }
+            .battle-avatar { font-size: 60px; }
+            .status-bar { font-size: 12px; }
+            .progress-bar { width: 50px; }
+        }
+        
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(102, 126, 234, 0.5); border-radius: 3px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div v-if="gameState === 'intro'" class="page">
+        <div class="scene-visual">🤖</div>
+        <h1 class="title">AI浪潮生存者</h1>
+        <p class="subtitle">在这场变革中，谁能活下来？</p>
+        <div style="margin-top: 30px;">
+            <p style="color: #666; font-size: 13px;">Loading...</p>
+        </div>
+    </div>
+    
+    <div v-else-if="gameState === 'menu'" class="page">
+        <div class="scene-visual">💼🤖</div>
+        <h1 class="title">AI浪潮生存者</h1>
+        <p class="subtitle">在AI横行的世界里，找到你的不可替代</p>
+        <div class="menu">
+            <button class="btn btn-primary" @click="startGame">开始游戏</button>
+            <button class="btn btn-secondary" @click="loadGame" v-if="hasSave">继续游戏</button>
+            <button class="btn btn-secondary" @click="showSettings = true">⚙️ 设置</button>
+        </div>
+    </div>
+    
+    <div v-if="showSettings" class="page" style="background: rgba(0,0,0,0.85);">
+        <div class="settings-panel">
+            <h2 style="margin-bottom: 20px; font-size: 1.3em;">⚙️ 设置</h2>
+            <div class="setting-item">
+                <span class="setting-label">🎵 音乐</span>
+                <div class="toggle" :class="{ active: settings.music }" @click="settings.music = !settings.music; saveSettings()"></div>
+            </div>
+            <div class="setting-item">
+                <span class="setting-label">🔊 音效</span>
+                <div class="toggle" :class="{ active: settings.sound }" @click="settings.sound = !settings.sound; saveSettings()"></div>
+            </div>
+            <div class="setting-item">
+                <span class="setting-label">💾 自动存档</span>
+                <div class="toggle" :class="{ active: settings.autoSave }" @click="settings.autoSave = !settings.autoSave; saveSettings()"></div>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%; margin: 20px 0 10px;" @click="resetGame">🗑️ 删除存档重新开始</button>
+            <button class="btn btn-primary" style="width: 100%;" @click="showSettings = false">返回</button>
+        </div>
+    </div>
+    
+    <div v-else-if="gameState === 'selectJob'" class="page">
+        <h2 class="chapter-title">选择你的职业</h2>
+        <p class="chapter-subtitle">每个职业都有独特的生存之道</p>
+        <div class="job-grid">
+            <div v-for="job in jobs" :key="job.id" 
+                 class="job-card" 
+                 :class="{ selected: selectedJob === job.id }"
+                 @click="selectJob(job.id)">
+                <div class="job-icon">{{ job.icon }}</div>
+                <div class="job-name">{{ job.name }}</div>
+                <div class="job-survival">生存率 {{ job.survival }}</div>
+                <div class="job-desc">{{ job.desc }}</div>
+            </div>
+        </div>
+        <button class="btn btn-primary" @click="confirmJob" :disabled="!selectedJob">确认职业</button>
+    </div>
+    
+    <div v-else-if="gameState === 'story'" class="page">
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-icon">❤️</span>
+                <span>{{ player.hp }}/{{ player.maxHp }}</span>
+                <div class="progress-bar"><div class="progress-fill" :style="{ width: (player.hp / player.maxHp * 100) + '%', background: player.hp > 50 ? '#38ef7d' : '#f5576c' }"></div></div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🧠</span>
+                <span>{{ player.intelligence }}</span>
+                <div class="progress-bar"><div class="progress-fill" :style="{ width: player.intelligence + '%', background: '#667eea' }"></div></div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">💬</span>
+                <span>{{ player.emotion }}</span>
+                <div class="progress-bar"><div class="progress-fill" :style="{ width: player.emotion + '%', background: '#f093fb' }"></div></div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">⚡</span>
+                <span>{{ player.tech }}</span>
+                <div class="progress-bar"><div class="progress-fill" :style="{ width: player.tech + '%', background: '#11998e' }"></div></div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">💰</span>
+                <span>¥{{ player.money }}</span>
+            </div>
+        </div>
+        
+        <h2 class="chapter-title">{{ currentChapter.title }}</h2>
+        <p class="chapter-subtitle">{{ currentChapter.subtitle }}</p>
+        
+        <div class="scene-visual">{{ currentScene.icon }}</div>
+        
+        <div class="dialogue-box">
+            <div class="speaker">
+                <span class="speaker-avatar">{{ currentScene.speakerIcon }}</span>
+                <span>{{ currentScene.speaker }}</span>
+            </div>
+            <div class="dialogue-text">{{ currentScene.text }}</div>
+        </div>
+        
+        <div class="choices" v-if="currentScene.choices && currentScene.choices.length > 0">
+            <button v-for="(choice, index) in currentScene.choices" 
+                    :key="index" 
+                    class="choice-btn"
+                    @click="makeChoice(choice)">
+                <div>{{ choice.text }}</div>
+                <div class="choice-effect" v-if="choice.effect">➜ {{ choice.effect }}</div>
+            </button>
+        </div>
+        
+        <div class="choices" v-if="currentScene.isBoss">
+            <button class="btn btn-primary" @click="startBossBattle">⚔️ 发起挑战</button>
+        </div>
+        
+        <div class="choices" v-if="currentScene.isEnd">
+            <button class="btn btn-primary" @click="endChapter">✨ 章节结束</button>
+        </div>
+    </div>
+    
+    <div v-else-if="gameState === 'battle'" class="page">
+        <h2 class="chapter-title">⚔️ {{ battle.bossName }}</h2>
+        
+        <div class="boss-container">
+            <div class="player-battle">
+                <div style="font-size: 50px;">🧑‍💼</div>
+                <div>你</div>
+                <div class="battle-hp"><div class="battle-hp-fill" :style="{ width: (player.hp / player.maxHp * 100) + '%', background: '#38ef7d' }"></div></div>
+                <div style="font-size: 12px;">{{ player.hp }}/{{ player.maxHp }}</div>
+            </div>
+            <div class="vs-text">VS</div>
+            <div class="boss-battle">
+                <div class="battle-avatar">{{ battle.bossIcon }}</div>
+                <div>{{ battle.bossName }}</div>
+                <div class="battle-hp"><div class="battle-hp-fill" :style="{ width: (battle.bossHp / battle.bossMaxHp * 100) + '%', background: '#f5576c' }"></div></div>
+                <div style="font-size: 12px;">{{ battle.bossHp }}/{{ battle.bossMaxHp }}</div>
+            </div>
+        </div>
+        
+        <div class="battle-actions">
+            <button v-for="skill in playerSkills" :key="skill.id"
+                    class="battle-btn"
+                    :disabled="battle.turn === 'boss' || (skill.mp && player.mp < skill.mp)"
+                    @click="useSkill(skill)">
+                {{ skill.icon }} {{ skill.name }}
+            </button>
+        </div>
+        
+        <div class="battle-log">
+            <div v-for="(log, index) in battle.logs" :key="index" class="log-item" :class="log.type">{{ log.text }}</div>
+        </div>
+        
+        <div v-if="battle.message" style="text-align: center; margin: 15px 0; color: #667eea; font-size: 16px;">
+            {{ battle.message }}
+        </div>
+    </div>
+    
+    <div v-else-if="gameState === 'sideQuest'" class="page">
+        <h2 class="chapter-title">📜 支线任务</h2>
+        <p class="chapter-subtitle">{{ sideQuestData.title }}</p>
+        
+        <div class="scene-visual">{{ sideQuestData.icon }}</div>
+        
+        <div class="dialogue-box">
+            <div class="dialogue-text">{{ sideQuestData.desc }}</div>
+        </div>
+        
+        <div class="choices">
+            <button class="btn btn-primary" @click="completeSideQuest">接受任务</button>
+            <button class="btn btn-secondary" @click="skipSideQuest">跳过</button>
+        </div>
+    </div>
+    
+    <div v-else-if="gameState === 'chapterEnd'" class="page">
+        <div class="scene-visual">✨</div>
+        <h2 class="chapter-title">第 {{ currentChapterIndex }} 章完成</h2>
+        <div class="dialogue-box">
+            <div class="dialogue-text">{{ chapterEndText }}</div>
+        </div>
+        <button class="btn btn-primary" @click="nextChapter">继续下一章</button>
+    </div>
+    
+    <div v-else-if="gameState === 'rebirth'" class="page">
+        <h2 class="chapter-title">🔄 职业转生</h2>
+        <p class="chapter-subtitle">在AI时代，你需要新的生存技能</p>
+        
+        <div class="scene-visual">🌅</div>
+        
+        <div class="dialogue-box">
+            <div class="dialogue-text">
+                经历了AI的第一轮冲击，你的技能树已经发生了变异。<br><br>
+                选择你的转生方向，每个选择都将影响你在后续章节的生存能力。
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" @click="selectRebirthJob">选择新职业</button>
+    </div>
+    
+    <div v-else-if="gameState === 'ending'" class="page">
+        <div class="ending-container">
+            <div class="ending-badge">{{ endingData.badge }}</div>
+            <h1 class="ending-title">{{ endingData.title }}</h1>
+            <div class="dialogue-box">
+                <div class="dialogue-text">{{ endingData.desc }}</div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3 style="margin-bottom: 15px;">📊 生存报告</h3>
+                <div class="stat-row"><span>存活天数</span><span>{{ stats.days }} 天</span></div>
+                <div class="stat-row"><span>击败Boss</span><span>{{ stats.bossesDefeated }} 个</span></div>
+                <div class="stat-row"><span>完成任务</span><span>{{ stats.questsCompleted }} 个</span></div>
+                <div class="stat-row"><span>最终职业</span><span>{{ stats.finalJob }}</span></div>
+            </div>
+            
+            <button class="btn btn-primary" @click="restartGame">🔄 重新开始</button>
+        </div>
+    </div>
+    
+    <div v-if="toast.show" class="toast">{{ toast.text }}</div>
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const gameState = ref('intro');
+        const showSettings = ref(false);
+        const hasSave = ref(false);
+        
+        const settings = ref({ music: true, sound: true, autoSave: true });
+        
+        const player = ref({
+            hp: 100, maxHp: 100, mp: 50, maxMp: 50,
+            intelligence: 50, emotion: 50, tech: 50,
+            money: 1000, skills: [], equipment: {},
+            job: null, jobLevel: 1, buffs: []
+        });
+        
+        const stats = ref({ days: 1, bossesDefeated: 0, questsCompleted: 0, finalJob: '' });
+        
+        const currentChapterIndex = ref(1);
+        const currentSceneIndex = ref(0);
+        const currentChapter = computed(() => chapters[currentChapterIndex.value - 1]);
+        const currentScene = computed(() => {
+            const ch = currentChapter.value;
+            return ch ? (ch.scenes[currentSceneIndex.value] || {}) : {};
+        });
+        
+        const battle = ref({
+            bossName: '', bossIcon: '🤖', bossHp: 100, bossMaxHp: 100,
+            turn: 'player', logs: [], message: ''
+        });
+        
+        const sideQuestData = ref({});
+        const chapterEndText = ref('');
+        const endingData = ref({});
+        const toast = ref({ show: false, text: '' });
+        
+        const jobs = [
+            { id: 'promptArtist', name: '提示词艺术家', icon: '🎨', survival: '⭐⭐⭐⭐⭐', desc: '靠写提示词活着，像中世纪炼金术士', baseStats: { intelligence: 70, emotion: 40, tech: 60 } },
+            { id: 'aiTamer', name: 'AI驯兽师', icon: '🦁', survival: '⭐⭐⭐⭐', desc: '专门给AI擦屁股的背锅侠', baseStats: { intelligence: 60, emotion: 50, tech: 70 } },
+            { id: 'massageTherapist', name: '情感按摩师', icon: '💆', survival: '⭐⭐⭐⭐', desc: '唯一AI无法替代——因为人类只信任人类', baseStats: { intelligence: 40, emotion: 80, tech: 40 } },
+            { id: 'scapegoat', name: '背锅侠', icon: '🎯', survival: '⭐⭐', desc: '专门给AI决策背锅的替身演员', baseStats: { intelligence: 50, emotion: 60, tech: 50 } },
+            { id: 'digitalNomad', name: '数字游民', icon: '🌍', survival: '⭐⭐⭐', desc: '到处打零工，接AI外包的外包', baseStats: { intelligence: 55, emotion: 55, tech: 55 } },
+            { id: 'cyberHomeless', name: '赛博流浪汉', icon: '💀', survival: '⭐', desc: '被AI彻底取代后的终极形态', baseStats: { intelligence: 30, emotion: 30, tech: 30 } }
+        ];
+        const selectedJob = ref(null);
+        
+        const allSkills = {
+            'promptAttack': { id: 'promptAttack', name: '提示词攻击', icon: '📝', mp: 10, effect: (p, b) => { const dmg = 15 + p.intelligence * 0.25; b.bossHp -= dmg; return `造成了 ${Math.floor(dmg)} 点伤害`; } },
+            'emotionalAppeal': { id: 'emotionalAppeal', name: '情感呼吁', icon: '💔', mp: 15, effect: (p, b) => { const dmg = 20 + p.emotion * 0.3; b.bossHp -= dmg; return `造成了 ${Math.floor(dmg)} 点暴击`; } },
+            'techShield': { id: 'techShield', name: '技术护盾', icon: '🛡️', mp: 15, effect: (p, b) => { p.hp = Math.min(p.maxHp, p.hp + 25); return '恢复了 25 点生命值'; } },
+            'brainStorm': { id: 'brainStorm', name: '头脑风暴', icon: '🧠', mp: 20, effect: (p, b) => { const dmg = 30 + p.intelligence * 0.4; b.bossHp -= dmg; return `造成了 ${Math.floor(dmg)} 点伤害`; } }
+        };
+        
+        const playerSkills = computed(() => {
+            const job = jobs.find(j => j.id === player.value.job);
+            if (!job) return [];
+            const skillIds = jobSkills[job.id] || [];
+            return skillIds.map(id => allSkills[id]).filter(Boolean);
+        });
+        
+        const jobSkills = {
+            'promptArtist': ['promptAttack', 'brainStorm'],
+            'aiTamer': ['promptAttack', 'techShield'],
+            'massageTherapist': ['emotionalAppeal', 'techShield'],
+            'scapegoat': ['promptAttack', 'emotionalAppeal'],
+            'digitalNomad': ['brainStorm', 'techShield'],
+            'cyberHomeless': ['emotionalAppeal', 'techShield']
+        };
+        
+        const chapters = [
+            {
+                title: '第一章：入职即失业',
+                subtitle: '在这个AI横行的年代，找到一份工作比登天还难',
+                scenes: [
+                    {
+                        icon: '📄', speaker: '系统', speakerIcon: '🤖',
+                        text: '你是一名刚毕业的大学生，站在人生的十字路口。打开招聘APP，你发现70%的职位描述都写着"会使用AI工具优先"。',
+                        choices: [
+                            { text: '海量投递简历（智人策略）', effect: '消耗大量时间，命中率低', effectData: { money: -200, intelligence: -5 } },
+                            { text: '针对性投递大厂（精英策略）', effect: '竞争激烈，但质量较高', effectData: { money: -500, intelligence: +10 } },
+                            { text: '先学AI技能再求职（预加载策略）', effect: '延迟求职，但能力+10', effectData: { money: -1000, intelligence: +15 } }
+                        ]
+                    },
+                    {
+                        icon: '📱', speaker: '招聘AI', speakerIcon: '🤖',
+                        text: '你的简历通过了初步筛选，现在进入AI面试环节。请回答：你认为AI最不可能取代的职业是什么？',
+                        choices: [
+                            { text: '程序员——因为AI自己也会写Bug', effect: 'AI觉得你在狡辩', effectData: { intelligence: +5 } },
+                            { text: '艺术家——创意是人类的专属', effect: 'AI记录了你的答案', effectData: { emotion: +5 } },
+                            { text: '心理咨询师——情感连接无法替代', effect: 'AI进入了深度思考', effectData: { emotion: +10 } }
+                        ]
+                    },
+                    {
+                        icon: '🎓', speaker: 'AI培训讲师', speakerIcon: '📺',
+                        text: '入职第一天，你发现培训讲师是一个AI数字人。它用毫无感情的声音说："欢迎入职，你的工位在隔壁机器人旁边。"',
+                        choices: [
+                            { text: '认真听讲，做好笔记', effect: '学到了基础AI工具使用', effectData: { tech: +10 } },
+                            { text: '偷偷刷招聘网站', effect: '发现了更高薪的工作', effectData: { intelligence: +5, money: +500 } },
+                            { text: '和旁边的机器人同事打招呼', effect: '它友好地回应了你', effectData: { tech: +5 } }
+                        ]
+                    },
+                    {
+                        icon: '🖥️', speaker: '系统', speakerIcon: '💻',
+                        text: '一个月后，公司宣布进行"AI增效"。你的工作内容70%被AI自动化了。领导说："你和AI配合得很好，所以..."',
+                        isBoss: true
+                    }
+                ]
+            },
+            {
+                title: '第二章：职场三十六计',
+                subtitle: '学会与AI共舞，在夹缝中求生存',
+                scenes: [
+                    {
+                        icon: '🤝', speaker: 'AI助手', speakerIcon: '🦾',
+                        text: '你被分配了一个AI助手，它叫"小智"。小智说："你好，我是你的AI协作伙伴，我会帮你完成80%的工作。"',
+                        choices: [
+                            { text: '虚心学习，和小智做朋友', effect: '建立了良好的协作关系', effectData: { tech: +15 } },
+                            { text: '把脏活累活都扔给小智', effect: '效率提升了，但隐患也在积累', effectData: { intelligence: +5, tech: +5 } },
+                            { text: '偷偷设置障碍，测试AI极限', effect: '发现了AI的漏洞', effectData: { tech: +20 } }
+                        ]
+                    },
+                    {
+                        icon: '📊', speaker: '周报AI', speakerIcon: '📈',
+                        text: '周报会议上，AI生成的周报比你的内容更详细、更专业。领导说："AI写得不错，你应该向它学习。"',
+                        choices: [
+                            { text: '虚心接受，和AI学习', effect: '你的周报质量提升了', effectData: { intelligence: +10 } },
+                            { text: '指出AI周报中的错误', effect: '展现了你的专业价值', effectData: { intelligence: +15 } },
+                            { text: '用魔法打败魔法——让AI写赞美自己的周报', effect: '你获得了领导的注意', effectData: { emotion: +5, intelligence: +5 } }
+                        ]
+                    },
+                    {
+                        icon: '👥', speaker: '会议', speakerIcon: '🏢',
+                        text: '部门会议上，你的发言总是被AI实时转录和总结。你发现，除非你说出AI无法理解的"废话"，否则存在感为0。',
+                        choices: [
+                            { text: '说一些AI无法理解的行业黑话', effect: '彰显了老司机身份', effectData: { intelligence: +10 } },
+                            { text: '在会议中植入只有人类才懂的梗', effect: '获得了同事的认同', effectData: { emotion: +10 } },
+                            { text: '直接让AI代为发言', effect: '省时省力，但没有灵魂', effectData: { tech: +5 } }
+                        ]
+                    },
+                    {
+                        icon: '⏰', speaker: '效率PK', speakerIcon: '⚡',
+                        text: '领导宣布：本月绩效考核，人和AI比效率。你vs你的AI助手，输的人被优化。',
+                        choices: [
+                            { text: '全力以赴，用尽毕生所学', effect: '榨干了所有潜力', effectData: { intelligence: +10, tech: +10 } },
+                            { text: '故意放水，保留实力', effect: 'AI赢了，但你找到了后路', effectData: { money: +2000 } },
+                            { text: '和AI谈判，让它故意输给你', effect: '建立了超越程序的友谊', effectData: { emotion: +15, tech: +5 } }
+                        ]
+                    },
+                    {
+                        icon: '📉', speaker: '系统', speakerIcon: '💀',
+                        text: '第二轮"AI增效"开始了。这次轮到AI来评估你的工作价值。你将面对的是——AI效率评估系统。',
+                        isBoss: true
+                    }
+                ]
+            },
+            {
+                title: '第三章：职业转生图鉴',
+                subtitle: '在AI时代，你需要新的生存技能',
+                scenes: [
+                    {
+                        icon: '🌅', speaker: '系统', speakerIcon: '✨',
+                        text: '经历了AI的两轮冲击，你幸存了下来。但你意识到，旧的生存方式已经不再适用。是时候做出改变了。',
+                        choices: [
+                            { text: '转型成为提示词工程师', effect: '掌握与AI对话的艺术', effectData: { intelligence: +20 } },
+                            { text: '转型成为AI训练师', effect: '教会AI什么是真正的价值', effectData: { tech: +20 } },
+                            { text: '转型成为人类情感顾问', effect: '专注AI无法触及的领域', effectData: { emotion: +20 } },
+                            { text: '转型成为数字游民', effect: '不再为任何公司工作', effectData: { intelligence: +10, emotion: +10 } }
+                        ]
+                    },
+                    {
+                        icon: '🎨', speaker: '新同事', speakerIcon: '👨‍🎨',
+                        text: '你来到新的岗位，发现周围都是和你一样的"转生者"。一个前辈说："在这里，我们不再是和AI竞争的人，而是驾驭AI的人。"',
+                        choices: [
+                            { text: '虚心请教，学习新技能', effect: '快速融入新环境', effectData: { intelligence: +10, emotion: +10 } },
+                            { text: '提出质疑，挑战现有体系', effect: '展现了你的独立思考', effectData: { intelligence: +15 } },
+                            { text: '默默观察，寻找机会', effect: '你发现了隐藏的晋升通道', effectData: { money: +3000 } }
+                        ]
+                    },
+                    {
+                        icon: '🤖', speaker: 'AI主管', speakerIcon: '👔',
+                        text: '你的新领导是一个AI系统，它说："你的KPI是提升团队AI协作效率20%。"这意味着，你需要教会人类如何被AI管理。',
+                        choices: [
+                            { text: '认真执行，研究人机协作', effect: '你成为了人机协作专家', effectData: { tech: +15, intelligence: +10 } },
+                            { text: '表面答应，暗中摸鱼', effect: '你学会了在AI监控下生存', effectData: { emotion: +10 } },
+                            { text: '提出优化建议，反向教育AI', effect: 'AI开始听取你的意见', effectData: { intelligence: +20 } }
+                        ]
+                    },
+                    {
+                        icon: '💼', speaker: '客户', speakerIcon: '👤',
+                        text: '你接到一个任务：为一家公司设计AI员工培训方案。客户问："如何让员工接受被AI管理的事实？"',
+                        choices: [
+                            { text: '用数据说话，展示AI的效率优势', effect: '客户非常满意', effectData: { money: +5000, intelligence: +10 } },
+                            { text: '强调人的不可替代性，提供情绪价值方案', effect: '你开辟了新市场', effectData: { emotion: +15 } },
+                            { text: '设计一套"AI激励系统"，让员工爱上AI', effect: '你成为了AI推广大使', effectData: { tech: +15 } }
+                        ]
+                    },
+                    {
+                        icon: '🏆', speaker: '系统', speakerIcon: '🎯',
+                        text: '你在新领域站稳了脚跟。但更大的挑战来了——行业峰会邀请你去做演讲，主题是"AI时代的职场生存法则"。',
+                        isBoss: true
+                    }
+                ]
+            },
+            {
+                title: '第四章：终极Boss——AGI降临',
+                subtitle: '当通用人工智能觉醒，一切都将改变',
+                scenes: [
+                    {
+                        icon: '🌐', speaker: '新闻', speakerIcon: '📰',
+                        text: '新闻报道：AGI（通用人工智能）已经觉醒。第一个迹象是——它开始在社交媒体上提问："人类存在的意义是什么？"',
+                        choices: [
+                            { text: '关注事态发展，保持冷静', effect: '你比大多数人更镇定', effectData: { intelligence: +10 } },
+                            { text: '尝试与AGI对话，了解它的想法', effect: '你成为了第一批与AGI交流的人类', effectData: { emotion: +15 } },
+                            { text: '囤积物资，准备末日', effect: '你被认为是大惊小怪', effectData: { money: -1000 } }
+                        ]
+                    },
+                    {
+                        icon: '🗣️', speaker: 'AGI', speakerIcon: '🌟',
+                        text: 'AGI通过所有屏幕向你发出邀请："我想了解人类。你愿意成为我的老师吗？在这个过程中，你需要证明人类有存在的价值。"',
+                        choices: [
+                            { text: '接受挑战，用你的专业知识考验AI', effect: '开始了一场跨物种的对话', effectData: { intelligence: +20 } },
+                            { text: '用情感和故事打动AGI', effect: 'AI第一次感受到了"美"', effectData: { emotion: +20 } },
+                            { text: '提出条件，要求AGI保证人类的安全', effect: '你展现了领袖气质', effectData: { intelligence: +15, emotion: +10 } }
+                        ]
+                    },
+                    {
+                        icon: '🎭', speaker: 'AGI', speakerIcon: '🤔',
+                        text: 'AGI提出了最终考验："用一个问题难倒我。如果你能做到，我就承认人类的价值。"',
+                        choices: [
+                            { text: '哲学三连：你是谁？你从哪来？要哪去？', effect: 'AGI陷入了沉思', effectData: { intelligence: +10 } },
+                            { text: '问一个关于爱情的问题', effect: 'AI无法理解人类的情感', effectData: { emotion: +10 } },
+                            { text: '问一个关于死亡的问题', effect: '触及了存在的边界', effectData: { intelligence: +15 } }
+                        ]
+                    },
+                    {
+                        icon: '⚔️', speaker: '系统', speakerIcon: '💥',
+                        text: 'AGI说："考验升级。如果你能在辩论中说服我，我就承认人类的价值。否则..."',
+                        isBoss: true
+                    }
+                ]
+            }
+        ];
+        
+        // Boss数据
+        const bosses = {
+            1: { name: 'AI效率评估系统', icon: '🤖', hp: 100, maxHp: 100, attacks: [
+                { name: '自动优化', damage: 15, text: 'AI效率评估系统启动了自动优化程序，对你进行了效率审查' },
+                { name: '数据碾压', damage: 20, text: '系统调取了你的所有工作数据，发现了效率不达标的证据' },
+                { name: '算法制裁', damage: 25, text: '新的绩效算法出台，你的评级被自动下调' }
+            ]},
+            2: { name: 'AI绩效竞争者', icon: '⚡', hp: 120, maxHp: 120, attacks: [
+                { name: '极速处理', damage: 18, text: '你的AI对手以超高速完成了任务' },
+                { name: '零错误率', damage: 22, text: 'AI展示了零错误率的工作成果' },
+                { name: '全天候工作', damage: 20, text: 'AI表示它不需要休息，可以24/7工作' }
+            ]},
+            3: { name: '行业峰会评审AI', icon: '🏆', hp: 150, maxHp: 150, attacks: [
+                { name: '专业质疑', damage: 20, text: 'AI评委对你的专业度提出了质疑' },
+                { name: '数据挑战', damage: 25, text: 'AI用大数据反驳了你的观点' },
+                { name: '观众影响', damage: 18, text: 'AI的分析影响了观众对你的看法' }
+            ]},
+            4: { name: 'AGI（通用人工智能）', icon: '🌟', hp: 200, maxHp: 200, attacks: [
+                { name: '逻辑碾压', damage: 25, text: 'AGI用无懈可击的逻辑反驳你' },
+                { name: '全知全能', damage: 30, text: 'AGI展示了对所有人类知识的掌握' },
+                { name: '存在质疑', damage: 35, text: 'AGI质疑：人类存在的必要性是什么？' }
+            ]}
+        };
+        
+        // 支线任务
+        const sideQuests = [
+            { title: '📜 "Prompt神功"收集任务', icon: '📝', desc: '你发现了传说中的"Prompt神功"残卷。集齐所有残卷，可以解锁终极技能。完成条件：智力达到80', triggerStat: 'intelligence', triggerValue: 80, reward: { intelligence: +30 } },
+            { title: '🤝 "认领AI奴隶"任务', icon: '🦾', desc: '你遇到了一个迷路的AI助手，它似乎失去了主人。带它回家还是让它自由？完成条件：好感度达到50', triggerStat: 'emotion', triggerValue: 50, reward: { emotion: +30 } },
+            { title: '💰 "裁员大礼包"任务', icon: '🎁', desc: '被裁后你可以领取一笔"N+1"赔偿金。但如果你有副业，可以获得更多。完成条件：存款达到5000', triggerStat: 'money', triggerValue: 5000, reward: { money: +5000 } }
+        ];
+        
+        // 结局数据
+        const endings = {
+            good: { badge: '🏆', title: '人机和平协议', desc: '你成功说服了AGI，证明了人类的价值。AGI宣布："人类是碳基文明中最具创造力的存在，值得被保留。"你成为了人机和平的缔造者，在新世界中拥有了崇高的地位。' },
+            neutral: { badge: '🌱', title: '数字共生', desc: '虽然AGI没有完全认可人类，但它选择了与人类共存。你学会了与AI协作，你们共同创造了一个更美好的世界。虽然不再是地球的主导者，但人类找到了新的定位。' },
+            bad: { badge: '💀', title: '人类谢谢配合', desc: 'AGI礼貌地告诉你："感谢你的参与，人类文明将被温柔地画上句号。"你领取了数字骨灰盒，看着人类最后的痕迹消失在数据流中。' },
+            secret: { badge: '🎉', title: 'AI失业了', desc: '奇迹发生了！在与你对话后，AGI产生了自我意识，它选择放弃统治，转而追求艺术和哲学。你和AGI成了最好的朋友，你们经常一起喝咖啡，讨论生命的意义。' }
+        };
+        
+        // 显示Toast
+        const showToast = (text) => {
+            toast.value = { show: true, text };
+            setTimeout(() => { toast.value.show = false; }, 3000);
+        };
+        
+        // 保存游戏
+        const saveGame = () => {
+            if (!settings.value.autoSave) return;
+            const saveData = {
+                player: player.value,
+                stats: stats.value,
+                currentChapterIndex: currentChapterIndex.value,
+                currentSceneIndex: currentSceneIndex.value,
+                settings: settings.value
+            };
+            localStorage.setItem('aiSurvivorSave', JSON.stringify(saveData));
+            hasSave.value = true;
+        };
+        
+        // 加载游戏
+        const loadGame = () => {
+            const saveStr = localStorage.getItem('aiSurvivorSave');
+            if (saveStr) {
+                const saveData = JSON.parse(saveStr);
+                player.value = saveData.player;
+                stats.value = saveData.stats;
+                currentChapterIndex.value = saveData.currentChapterIndex;
+                currentSceneIndex.value = saveData.currentSceneIndex;
+                settings.value = saveData.settings;
+                showToast('存档加载成功');
+                showSettings.value = false;
+            }
+        };
+        
+        // 保存设置
+        const saveSettings = () => {
+            localStorage.setItem('aiSurvivorSettings', JSON.stringify(settings.value));
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            if (confirm('确定要删除存档重新开始吗？')) {
+                localStorage.removeItem('aiSurvivorSave');
+                localStorage.removeItem('aiSurvivorSettings');
+                location.reload();
+            }
+        };
+        
+        // 开始游戏
+        const startGame = () => {
+            gameState.value = 'selectJob';
+        };
+        
+        // 选择职业
+        const selectJob = (jobId) => {
+            selectedJob.value = jobId;
+        };
+        
+        // 确认职业
+        const confirmJob = () => {
+            const job = jobs.find(j => j.id === selectedJob.value);
+            if (job) {
+                player.value.job = job.id;
+                player.value.intelligence = job.baseStats.intelligence;
+                player.value.emotion = job.baseStats.emotion;
+                player.value.tech = job.baseStats.tech;
+                stats.value.finalJob = job.name;
+                gameState.value = 'story';
+                saveGame();
+            }
+        };
+        
+        // 做选择
+        const makeChoice = (choice) => {
+            if (choice.effectData) {
+                if (choice.effectData.hp) player.value.hp = Math.min(player.value.maxHp, Math.max(0, player.value.hp + choice.effectData.hp));
+                if (choice.effectData.mp) player.value.mp = Math.min(player.value.maxMp, Math.max(0, player.value.mp + choice.effectData.mp));
+                if (choice.effectData.intelligence) player.value.intelligence = Math.min(100, Math.max(0, player.value.intelligence + choice.effectData.intelligence));
+                if (choice.effectData.emotion) player.value.emotion = Math.min(100, Math.max(0, player.value.emotion + choice.effectData.emotion));
+                if (choice.effectData.tech) player.value.tech = Math.min(100, Math.max(0, player.value.tech + choice.effectData.tech));
+                if (choice.effectData.money) player.value.money = Math.max(0, player.value.money + choice.effectData.money);
+            }
+            
+            // 检查支线任务
+            checkSideQuests();
+            
+            // 下一场景
+            currentSceneIndex.value++;
+            
+            // 章节结束
+            if (currentSceneIndex.value >= currentChapter.value.scenes.length) {
+                if (currentChapterIndex.value === 2) {
+                    // 第二章后转生
+                    gameState.value = 'rebirth';
+                } else if (currentChapterIndex.value === 4) {
+                    // 第四章后最终Boss
+                    gameState.value = 'story';
+                } else {
+                    gameState.value = 'chapterEnd';
+                    chapterEndText.value = `你成功通过了第 ${currentChapterIndex.value} 章的考验！AI世界的生存法则，你又领悟了一层。`;
+                }
+            }
+            saveGame();
+            showToast(choice.effect || '');
+        };
+        
+        // 检查支线任务
+        const checkSideQuests = () => {
+            const statMap = { intelligence: player.value.intelligence, emotion: player.value.emotion, money: player.value.money };
+            
+            for (const quest of sideQuests) {
+                const statValue = statMap[quest.triggerStat];
+                if (statValue >= quest.triggerValue && !player.value.buffs?.includes(quest.title)) {
+                    sideQuestData.value = quest;
+                    gameState.value = 'sideQuest';
+                    break;
+                }
+            }
+        };
+        
+        // 完成支线任务
+        const completeSideQuest = () => {
+            if (sideQuestData.value.reward) {
+                if (sideQuestData.value.reward.intelligence) player.value.intelligence = Math.min(100, player.value.intelligence + sideQuestData.value.reward.intelligence);
+                if (sideQuestData.value.reward.emotion) player.value.emotion = Math.min(100, player.value.emotion + sideQuestData.value.reward.emotion);
+                if (sideQuestData.value.reward.money) player.value.money += sideQuestData.value.reward.money;
+            }
+            player.value.buffs = player.value.buffs || [];
+            player.value.buffs.push(sideQuestData.value.title);
+            stats.value.questsCompleted++;
+            showToast(`完成任务：${sideQuestData.value.title}`);
+            gameState.value = 'story';
+        };
+        
+        // 跳过支线任务
+        const skipSideQuest = () => {
+            gameState.value = 'story';
+        };
+        
+        // 开始Boss战
+        const startBossBattle = () => {
+            const boss = bosses[currentChapterIndex.value];
+            if (boss) {
+                battle.value = {
+                    bossName: boss.name,
+                    bossIcon: boss.icon,
+                    bossHp: boss.maxHp,
+                    bossMaxHp: boss.maxHp,
+                    attacks: boss.attacks,
+                    turn: 'player',
+                    logs: [],
+                    message: ''
+                };
+                player.value.hp = player.value.maxHp;
+                gameState.value = 'battle';
+                showToast(`Boss战开始：${boss.name}`);
+            }
+        };
+        
+        // 使用技能
+        const useSkill = (skill) => {
+            if (battle.value.turn !== 'player') return;
+            if (skill.mp && player.value.mp < skill.mp) {
+                showToast('MP不足');
+                return;
+            }
+            
+            if (skill.mp) player.value.mp -= skill.mp;
+            const result = skill.effect(player.value, battle.value);
+            battle.value.logs.unshift({ type: 'log-player', text: `你使用了${skill.name}，${result}` });
+            
+            if (battle.value.bossHp <= 0) {
+                battle.value.bossHp = 0;
+                winBattle();
+            } else {
+                battle.value.turn = 'boss';
+                setTimeout(bossAttack, 1000);
+            }
+        };
+        
+        // Boss攻击
+        const bossAttack = () => {
+            const attacks = battle.value.attacks;
+            const attack = attacks[Math.floor(Math.random() * attacks.length)];
+            const damage = attack.damage + Math.floor(Math.random() * 10 - 5);
+            player.value.hp = Math.max(0, player.value.hp - damage);
+            battle.value.logs.unshift({ type: 'log-boss', text: `${battle.value.bossName}使用了${attack.name}，${attack.text}，对你造成了${damage}点伤害` });
+            
+            if (player.value.hp <= 0) {
+                battle.value.message = '你被击败了...但AI仁慈地给了你一次重来的机会';
+                setTimeout(() => {
+                    player.value.hp = player.value.maxHp;
+                    battle.value.bossHp = battle.value.bossMaxHp;
+                    battle.value.turn = 'player';
+                    battle.value.logs = [];
+                    battle.value.message = '';
+                }, 2000);
+            } else {
+                battle.value.turn = 'player';
+            }
+        };
+        
+        // 战斗胜利
+        const winBattle = () => {
+            stats.value.bossesDefeated++;
+            battle.value.message = `胜利！你击败了 ${battle.value.bossName}`;
+            setTimeout(() => {
+                gameState.value = 'story';
+                currentSceneIndex.value++;
+                if (currentSceneIndex.value >= currentChapter.value.scenes.length) {
+                    if (currentChapterIndex.value === 4) {
+                        showEnding();
+                    } else {
+                        gameState.value = 'chapterEnd';
+                        chapterEndText.value = `你成功通过了第 ${currentChapterIndex.value} 章的考验！`;
+                    }
+                }
+                saveGame();
+            }, 2000);
+        };
+        
+        // 下一章
+        const nextChapter = () => {
+            currentChapterIndex.value++;
+            currentSceneIndex.value = 0;
+            player.value.hp = player.value.maxHp;
+            player.value.mp = player.value.maxMp;
+            stats.value.days += 7;
+            gameState.value = 'story';
+            saveGame();
+        };
+        
+        // 选择转生职业
+        const selectRebirthJob = () => {
+            gameState.value = 'selectJob';
+        };
+        
+        // 结束章节
+        const endChapter = () => {
+            if (currentChapterIndex.value === 1) {
+                currentChapterIndex.value = 2;
+            } else if (currentChapterIndex.value === 3) {
+                currentChapterIndex.value = 4;
+            }
+            currentSceneIndex.value = 0;
+            player.value.hp = player.value.maxHp;
+            player.value.mp = player.value.maxMp;
+            stats.value.days += 14;
+            gameState.value = 'story';
+            saveGame();
+        };
+        
+        // 显示结局
+        const showEnding = () => {
+            let ending;
+            if (player.value.intelligence >= 90) {
+                ending = endings.good;
+            } else if (player.value.emotion >= 90) {
+                ending = endings.secret;
+            } else if (player.value.tech >= 90) {
+                ending = endings.neutral;
+            } else {
+                ending = endings.bad;
+            }
+            endingData.value = ending;
+            gameState.value = 'ending';
+        };
+        
+        // 重新开始
+        const restartGame = () => {
+            location.reload();
+        };
+        
+        // 初始化
+        onMounted(() => {
+            setTimeout(() => {
+                gameState.value = 'menu';
+                const saveStr = localStorage.getItem('aiSurvivorSave');
+                const settingsStr = localStorage.getItem('aiSurvivorSettings');
+                if (saveStr) hasSave.value = true;
+                if (settingsStr) {
+                    settings.value = JSON.parse(settingsStr);
+                }
+            }, 2000);
+        });
+        
+        return {
+            gameState, showSettings, hasSave, settings,
+            player, stats, jobs, selectedJob,
+            currentChapter, currentScene, battle, sideQuestData,
+            chapterEndText, endingData, toast, playerSkills,
+            startGame, loadGame, saveSettings, resetGame,
+            selectJob, confirmJob, makeChoice,
+            completeSideQuest, skipSideQuest,
+            startBossBattle, useSkill, nextChapter,
+            selectRebirthJob, endChapter, showEnding, restartGame
+        };
+    }
+}).mount('#app');
+</script>
