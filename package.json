@@ -1,0 +1,39 @@
+{
+  "name": "clawd-gateway-wework",
+  "version": "0.2.0",
+  "description": "企业微信通道插件 - 通过企微机器人驱动Clawdbot",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "npx tsc src/workweixin/src/*.ts --outDir dist/workweixin --esModuleInterop --module ESNext --moduleResolution node --target ES2022 --skipLibCheck",
+    "dev": "npx tsc --watch",
+    "test": "node --experimental-vm-modules test/run.js",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "prepublish": "npm run build"
+  },
+  "keywords": [
+    "clawdbot",
+    "workweixin",
+    "enterprise-wechat",
+    "plugin",
+    "messaging"
+  ],
+  "author": "lohasle",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lohasle/clawd-gateway-wework.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lohasle/clawd-gateway-wework/issues"
+  },
+  "homepage": "https://github.com/lohasle/clawd-gateway-wework",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
