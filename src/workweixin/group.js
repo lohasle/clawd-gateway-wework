@@ -27,6 +27,283 @@ function validateSendParams(corpId, corpSecret, agentId, text) {
 }
 
 /**
+ * 消息模板管理器
+ */
+class MessageTemplateManager {
+    constructor() {
+        this.templates = new Map();
+        this.registerDefaults();
+    }
+
+    /**
+     * 注册默认模板
+     */
+    registerDefaults() {
+        // 通知模板
+        this.register('notification', {
+            title: '{{title}}',
+            content: '{{content}}',
+            url: '{{url}}',
+            btnText: '查看详情'
+        });
+
+        // 提醒模板
+        this.register('reminder', {
+            title: '⏰ {{title}}',
+            content: '{{content}}',
+            url: '{{url}}',
+            btnText: '知道了'
+        });
+
+        // 警报模板
+        this.register('alert', {
+            title: '⚠️ {{title}}',
+            content: '{{content}}',
+            url: '{{url}}',
+            btnText: '处理'
+        });
+
+        // 欢迎模板
+        this.register('welcome', {
+            title: '🎉 欢迎使用',
+            content: '{{content}}',
+            url: '{{url}}',
+            btnText: '开始使用'
+        });
+
+        // 报告模板
+        this.register('report', {
+            title: '📊 {{title}}',
+            content: '{{content}}',
+            url: '{{url}}',
+            btnText: '查看报告'
+        });
+    }
+
+    /**
+     * 注册模板
+     */
+    register(name, template) {
+        this.templates.set(name, template);
+        log?.debug(`[workweixin] Template registered: ${name}`);
+    }
+
+    /**
+     * 获取模板
+     */
+    get(name) {
+        return this.templates.get(name);
+    }
+
+    /**
+     * 渲染模板
+     */
+    render(templateName, data) {
+        const template = this.templates.get(templateName);
+        if (!template) {
+            throw new Error(`Template not found: ${templateName}`);
+        }
+
+        let result = { ...template };
+
+        for (const key of Object.keys(result)) {
+            result[key] = result[key].replace(/\{\{(\w+)\}\}/g, (match, prop) => {
+                return data[prop] !== undefined ? data[prop] : match;
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * 获取所有模板名称
+     */
+    getTemplateNames() {
+        return Array.from(this.templates.keys());
+    }
+}
+
+export const templateManager = new MessageTemplateManager();
+
+/**
+ * 富文本消息构建器
+ */
+class RichMessageBuilder {
+    /**
+     * 构建文本卡片
+     */
+    buildTextCard(data) {
+        return {
+            msgtype: "textcard",
+            textcard: {
+                title: data.title || "",
+                description: data.description || "",
+                url: data.url || "",
+                btntxt: data.btnText || "详情"
+            }
+        };
+    }
+
+    /**
+     * 构建图文消息
+     */
+    buildNews(articles) {
+        if (!Array.isArray(articles) || articles.length === 0) {
+            throw new Error("Articles must be a non-empty array");
+        }
+
+        return {
+            msgtype: "news",
+            news: {
+                articles: articles.map(a => ({
+                    title: a.title || "",
+                    description: a.description || "",
+                    url: a.url || "",
+                    picurl: a.picUrl || ""
+                }))
+            }
+        };
+    }
+
+    /**
+     * 构建小程序消息
+     */
+    buildMiniProgram(data) {
+        return {
+            msgtype: "miniprogram",
+            miniprogram: {
+                appid: data.appid,
+                title: data.title,
+                thumb_media_id: data.thumbMediaId,
+                pagepath: data.pagepath
+            }
+        };
+    }
+
+    /**
+     * 构建Markdown消息
+     */
+    buildMarkdown(content) {
+        return {
+            msgtype: "markdown",
+            markdown: {
+                content: content
+            }
+        };
+    }
+
+    /**
+     * 构建模板消息
+     */
+    buildTemplate(templateName, data) {
+        const rendered = templateManager.render(templateName, data);
+        return {
+            msgtype: "textcard",
+            textcard: rendered
+        };
+    }
+
+    /**
+     * 构建复合消息（多条消息）
+     */
+    buildComposite(messages) {
+        if (!Array.isArray(messages) || messages.length === 0) {
+            throw new Error("Messages must be a non-empty array");
+        }
+
+        const composite = {
+            msgtype: "text",
+            text: { content: "" },
+            attachments: []
+        };
+
+        for (const msg of messages) {
+            if (msg.type === "text") {
+                composite.text.content += msg.content + "\n";
+            } else if (msg.type === "image") {
+                composite.attachments.push({
+                    type: "image",
+                    image: { media_id: msg.mediaId }
+                });
+            }
+        }
+
+        return composite;
+    }
+}
+
+export const richMessageBuilder = new RichMessageBuilder();
+
+/**
+ * 使用模板发送消息
+ */
+export async function sendTemplateMessage(corpId, corpSecret, agentId, toUser, templateName, data, options = {}) {
+    const accessToken = await getAccessToken(corpId, corpSecret);
+
+    const messageBody = richMessageBuilder.buildTemplate(templateName, data);
+
+    const url = `${WORKWEIXIN_API_BASE}/cgi-bin/message/send?access_token=${encodeURIComponent(accessToken)}`;
+
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            ...messageBody,
+            touser: toUser,
+            agentid: agentId
+        })
+    });
+
+    const result = await res.json();
+
+    if (result.errcode !== 0) {
+        throw new Error(`Template message failed: ${result.errmsg} (${result.errcode})`);
+    }
+
+    log?.info(`[workweixin] Template message sent: ${templateName}`);
+
+    return {
+        success: true,
+        msgId: result.msgid,
+        templateName
+    };
+}
+
+/**
+ * 发送Markdown消息
+ */
+export async function sendMarkdownMessage(corpId, corpSecret, agentId, toUser, markdown) {
+    const accessToken = await getAccessToken(corpId, corpSecret);
+
+    const messageBody = richMessageBuilder.buildMarkdown(markdown);
+
+    const url = `${WORKWEIXIN_API_BASE}/cgi-bin/message/send?access_token=${encodeURIComponent(accessToken)}`;
+
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            ...messageBody,
+            touser: toUser,
+            agentid: agentId
+        })
+    });
+
+    const result = await res.json();
+
+    if (result.errcode !== 0) {
+        throw new Error(`Markdown message failed: ${result.errmsg} (${result.errcode})`);
+    }
+
+    log?.info(`[workweixin] Markdown message sent`);
+
+    return {
+        success: true,
+        msgId: result.msgid
+    };
+}
+
+/**
  * 发送到用户列表
  */
 export async function sendToUsers(corpId, corpSecret, agentId, userIds, text) {
