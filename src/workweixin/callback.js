@@ -221,11 +221,262 @@ export function createSuccessResponse(encodingAESKey) {
  */
 export function createErrorResponse(error, encodingAESKey = null) {
     const body = { errcode: -1, errmsg: String(error) };
-    
+
     if (encodingAESKey) {
         const encrypted = encryptMessage(encodingAESKey, body);
         return { encrypt: encrypted };
     }
-    
+
     return body;
 }
+
+/**
+ * 消息路由器
+ */
+class MessageRouter {
+    constructor() {
+        this.routes = new Map();
+        this.defaultHandler = null;
+        this.middleware = [];
+    }
+
+    /**
+     * 注册路由
+     */
+    register(msgType, handler, options = {}) {
+        const key = options.event ? `${msgType}:${options.event}` : msgType;
+        this.routes.set(key, {
+            handler,
+            priority: options.priority || 0
+        });
+    }
+
+    /**
+     * 设置默认处理器
+     */
+    setDefault(handler) {
+        this.defaultHandler = handler;
+    }
+
+    /**
+     * 添加中间件
+     */
+    use(middleware) {
+        this.middleware.push(middleware);
+    }
+
+    /**
+     * 路由消息
+     */
+    async route(message) {
+        const { msgType, event } = message;
+
+        // 按优先级排序的路由
+        const sortedRoutes = Array.from(this.routes.entries())
+            .sort((a, b) => b[1].priority - a[1].priority);
+
+        // 查找匹配路由
+        const eventKey = event ? `${msgType}:${event}` : null;
+        let matchedRoute = null;
+
+        for (const [key, route] of sortedRoutes) {
+            if (key === msgType || key === eventKey) {
+                matchedRoute = route;
+                break;
+            }
+        }
+
+        // 执行中间件
+        let context = { message };
+        for (const mw of this.middleware) {
+            context = await mw(context);
+            if (context === null) {
+                return null; // 中间件拦截
+            }
+        }
+
+        // 执行处理器
+        if (matchedRoute) {
+            return await matchedRoute.handler(message, context);
+        }
+
+        if (this.defaultHandler) {
+            return await this.defaultHandler(message, context);
+        }
+
+        log?.warn(`[workweixin] No handler for message type: ${msgType}`);
+        return null;
+    }
+
+    /**
+     * 获取所有路由
+     */
+    getRoutes() {
+        return Array.from(this.routes.entries()).map(([key, route]) => ({
+            key,
+            priority: route.priority
+        }));
+    }
+}
+
+export const messageRouter = new MessageRouter();
+
+/**
+ * WebHook处理器
+ */
+class WebHookHandler {
+    constructor(options = {}) {
+        this.config = options.config || {};
+        this.router = options.router || messageRouter;
+        this.healthChecker = options.healthChecker || null;
+        this.errorHandler = options.errorHandler || null;
+        this.middlewares = [];
+    }
+
+    /**
+     * 配置
+     */
+    configure(config) {
+        this.config = { ...this.config, ...config };
+    }
+
+    /**
+     * 添加中间件
+     */
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    /**
+     * 处理请求
+     */
+    async handle(request) {
+        const startTime = Date.now();
+
+        try {
+            // 执行请求前中间件
+            for (const mw of this.middlewares) {
+                const result = await mw(request);
+                if (result === false) {
+                    return { statusCode: 403, body: { errcode: -1, errmsg: "Blocked by middleware" } };
+                }
+            }
+
+            // 健康检查请求
+            if (request.path === '/health' || request.query?.action === 'health') {
+                if (this.healthChecker) {
+                    const health = await this.healthChecker.check();
+                    return {
+                        statusCode: health.status === 'healthy' ? 200 : 503,
+                        body: health
+                    };
+                }
+                return { statusCode: 200, body: { status: 'ok' } };
+            }
+
+            // 指标请求
+            if (request.path === '/metrics' || request.query?.action === 'metrics') {
+                return { statusCode: 200, body: { status: 'ok', message: "Metrics endpoint" } };
+            }
+
+            // 回调验证请求
+            if (request.method === 'GET') {
+                const verifyResult = await this.handleVerification(request);
+                return verifyResult;
+            }
+
+            // 回调消息请求
+            if (request.method === 'POST') {
+                const processResult = await this.handleMessage(request);
+                return processResult;
+            }
+
+            return { statusCode: 405, body: { errcode: -1, errmsg: "Method not allowed" } };
+        } catch (err) {
+            log?.error(`[workweixin] WebHook error: ${err.message}`);
+
+            if (this.errorHandler) {
+                return await this.errorHandler(err, request);
+            }
+
+            return {
+                statusCode: 500,
+                body: { errcode: -1, errmsg: err.message }
+            };
+        } finally {
+            const duration = Date.now() - startTime;
+            log?.debug(`[workweixin] WebHook request processed in ${duration}ms`);
+        }
+    }
+
+    /**
+     * 处理验证请求
+     */
+    async handleVerification(request) {
+        const { query } = request;
+        const { msg_signature, timestamp, nonce, echostr } = query;
+
+        if (!this.config.token) {
+            return { statusCode: 200, body: echostr };
+        }
+
+        const result = verifyURL(
+            this.config.token,
+            this.config.encodingAESKey,
+            msg_signature,
+            timestamp,
+            nonce,
+            echostr
+        );
+
+        if (!result.success) {
+            return { statusCode: 401, body: { errcode: -1, errmsg: result.error } };
+        }
+
+        return { statusCode: 200, body: result.decrypted };
+    }
+
+    /**
+     * 处理消息请求
+     */
+    async handleMessage(request) {
+        const { query, body } = request;
+        const { msg_signature, timestamp, nonce } = query;
+
+        // 验证签名
+        if (msg_signature && this.config.token && timestamp && nonce) {
+            if (!verifyCallbackSignature(this.config.token, timestamp, nonce, msg_signature)) {
+                return { statusCode: 401, body: { errcode: -1, errmsg: "Signature mismatch" } };
+            }
+        }
+
+        // 解密消息
+        let messageBody = body;
+        if (this.config.encodingAESKey && body?.encrypt) {
+            try {
+                messageBody = decryptMessage(this.config.encodingAESKey, body.encrypt);
+            } catch (err) {
+                return { statusCode: 500, body: { errcode: -1, errmsg: `Decrypt failed: ${err.message}` } };
+            }
+        }
+
+        // 解析消息
+        const message = parseMessage(messageBody);
+        if (!message) {
+            return { statusCode: 400, body: { errcode: -1, errmsg: "Invalid message format" } };
+        }
+
+        // 路由消息
+        const result = await this.router.route(message);
+
+        // 返回响应
+        if (this.config.encodingAESKey) {
+            const encrypted = encryptMessage(this.config.encodingAESKey, { errcode: 0, errmsg: "ok" });
+            return { statusCode: 200, body: { encrypt: encrypted } };
+        }
+
+        return { statusCode: 200, body: { errcode: 0, errmsg: "ok" } };
+    }
+}
+
+export const webHookHandler = new WebHookHandler();
