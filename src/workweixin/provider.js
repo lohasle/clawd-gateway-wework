@@ -248,3 +248,169 @@ export function getAccessTokenCacheStats() {
         requestCount: accessTokenCache.requestCount,
     };
 }
+
+/**
+ * 消息队列 - 用于消息重试和批量发送
+ */
+class MessageQueue {
+    constructor(options = {}) {
+        this.maxRetries = options.maxRetries || 3;
+        this.retryDelay = options.retryDelay || 1000;
+        this.maxConcurrent = options.maxConcurrent || 5;
+        this.queue = [];
+        this.processing = 0;
+        this.failed = [];
+        this.stats = {
+            total: 0,
+            success: 0,
+            failed: 0,
+            retries: 0
+        };
+    }
+
+    /**
+     * 添加消息到队列
+     */
+    async add(message, sendFn) {
+        this.queue.push({
+            message,
+            sendFn,
+            retries: 0,
+            addedAt: Date.now()
+        });
+        this.stats.total++;
+        return this.process();
+    }
+
+    /**
+     * 处理队列
+     */
+    async process() {
+        if (this.processing >= this.maxConcurrent) return;
+        if (this.queue.length === 0) return;
+
+        this.processing++;
+
+        while (this.queue.length > 0 && this.processing < this.maxConcurrent) {
+            const item = this.queue.shift();
+            await this.processItem(item);
+        }
+
+        this.processing--;
+    }
+
+    /**
+     * 处理单个消息
+     */
+    async processItem(item) {
+        const { message, sendFn, retries } = item;
+
+        try {
+            await sendFn(message);
+            this.stats.success++;
+            log?.debug(`[workweixin] Message sent successfully`);
+        } catch (err) {
+            if (retries < this.maxRetries) {
+                item.retries++;
+                this.stats.retries++;
+                // 指数退避
+                const delay = this.retryDelay * Math.pow(2, retries);
+                log?.warn(`[workweixin] Message failed, retry ${retries + 1}/${this.maxRetries} after ${delay}ms`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                this.queue.unshift(item); // 放回队列头部优先重试
+            } else {
+                this.stats.failed++;
+                this.failed.push({ message, error: err, failedAt: Date.now() });
+                log?.error(`[workweixin] Message failed after ${this.maxRetries} retries: ${err.message}`);
+            }
+        }
+    }
+
+    /**
+     * 获取队列状态
+     */
+    getStatus() {
+        return {
+            pending: this.queue.length,
+            processing: this.processing,
+            stats: this.stats,
+            failedCount: this.failed.length
+        };
+    }
+
+    /**
+     * 重试失败的消息
+     */
+    async retryFailed() {
+        const failed = [...this.failed];
+        this.failed = [];
+
+        for (const item of failed) {
+            await this.add(item.message, item.sendFn || (() => Promise.resolve()));
+        }
+    }
+
+    /**
+     * 清空队列
+     */
+    clear() {
+        this.queue = [];
+        this.failed = [];
+    }
+}
+
+export const messageQueue = new MessageQueue({
+    maxRetries: 3,
+    retryDelay: 1000,
+    maxConcurrent: 3
+});
+
+/**
+ * 发送消息（带重试机制）
+ */
+export async function sendMessageWithRetry(toUser, text, options = {}) {
+    const maxRetries = options.maxRetries || 3;
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await sendMessageWorkWeixin(toUser, text, options);
+        } catch (err) {
+            lastError = err;
+            log?.warn(`[workweixin] Send attempt ${attempt}/${maxRetries} failed: ${err.message}`);
+
+            if (attempt < maxRetries) {
+                const delay = 1000 * Math.pow(2, attempt - 1); // 指数退避
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+/**
+ * 批量发送消息
+ */
+export async function sendBatchMessages(messages, options = {}) {
+    const results = [];
+
+    for (const msg of messages) {
+        try {
+            const result = await sendMessageWithRetry(msg.toUser, msg.text, {
+                ...options,
+                accountId: msg.accountId || options.accountId
+            });
+            results.push({ ...msg, ...result, success: true });
+        } catch (err) {
+            results.push({ ...msg, success: false, error: err.message });
+        }
+    }
+
+    return {
+        total: messages.length,
+        success: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
+    };
+}
