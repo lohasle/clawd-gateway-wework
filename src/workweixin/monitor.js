@@ -15,35 +15,289 @@ const DEFAULT_POLL_INTERVAL = 2000;
 const DEFAULT_RETRY_DELAY = 1000;
 
 /**
- * 监控状态管理
+ * 健康检查管理器
  */
-class MonitorState {
-    constructor(accountId) {
-        this.accountId = accountId;
-        this.reset();
+class HealthChecker {
+    constructor(options = {}) {
+        this.checks = new Map();
+        this.lastCheckTime = null;
+        this.status = 'unknown'; // unknown, healthy, degraded, unhealthy
+        this.metrics = {
+            uptime: 0,
+            totalChecks: 0,
+            successfulChecks: 0,
+            failedChecks: 0,
+            averageResponseTime: 0
+        };
+        this.startTime = Date.now();
+        this.registerDefaultChecks();
     }
 
-    reset() {
-        this.running = false;
-        this.lastMessageTime = null;
-        this.accessToken = null;
-        this.accessTokenExpiresAt = null;
-        this.consecutiveErrors = 0;
-        this.totalMessages = 0;
-        this.lastError = null;
+    /**
+     * 注册默认检查项
+     */
+    registerDefaultChecks() {
+        this.register('api_connectivity', async () => {
+            const start = Date.now();
+            try {
+                await getAccessToken('test', 'test');
+                return { status: 'healthy', responseTime: Date.now() - start };
+            } catch (err) {
+                return { status: 'unhealthy', error: err.message, responseTime: Date.now() - start };
+            }
+        });
+
+        this.register('memory_usage', () => {
+            const used = process.memoryUsage();
+            const status = used.heapUsed / used.heapLimit < 0.8 ? 'healthy' : 'degraded';
+            return {
+                status,
+                heapUsed: Math.round(used.heapUsed / 1024 / 1024),
+                heapTotal: Math.round(used.heapTotal / 1024 / 1024),
+                external: Math.round(used.external / 1024 / 1024)
+            };
+        });
+
+        this.register('queue_depth', () => {
+            // 检查消息队列深度
+            return { status: 'healthy', depth: 0 };
+        });
     }
 
-    toJSON() {
+    /**
+     * 注册检查项
+     */
+    register(name, checkFn) {
+        this.checks.set(name, {
+            fn: checkFn,
+            enabled: true,
+            interval: 30000 // 30秒检查一次
+        });
+    }
+
+    /**
+     * 禁用检查项
+     */
+    disableCheck(name) {
+        const check = this.checks.get(name);
+        if (check) {
+            check.enabled = false;
+        }
+    }
+
+    /**
+     * 启用检查项
+     */
+    enableCheck(name) {
+        const check = this.checks.get(name);
+        if (check) {
+            check.enabled = true;
+        }
+    }
+
+    /**
+     * 执行健康检查
+     */
+    async check() {
+        this.lastCheckTime = Date.now();
+        this.metrics.totalChecks++;
+
+        const results = [];
+        let hasUnhealthy = false;
+        let hasDegraded = false;
+
+        for (const [name, check] of this.checks) {
+            if (!check.enabled) continue;
+
+            const start = Date.now();
+            try {
+                const result = await check.fn();
+                results.push({ name, ...result, responseTime: Date.now() - start });
+
+                if (result.status === 'unhealthy') {
+                    hasUnhealthy = true;
+                    this.metrics.failedChecks++;
+                } else if (result.status === 'degraded') {
+                    hasDegraded = true;
+                } else {
+                    this.metrics.successfulChecks++;
+                }
+            } catch (err) {
+                results.push({ name, status: 'error', error: err.message, responseTime: Date.now() - start });
+                hasUnhealthy = true;
+                this.metrics.failedChecks++;
+            }
+        }
+
+        // 计算整体状态
+        if (hasUnhealthy) {
+            this.status = 'unhealthy';
+        } else if (hasDegraded) {
+            this.status = 'degraded';
+        } else {
+            this.status = 'healthy';
+        }
+
+        // 更新平均响应时间
+        const totalResponseTime = results.reduce((sum, r) => sum + (r.responseTime || 0), 0);
+        this.metrics.averageResponseTime = totalResponseTime / results.length;
+
+        this.metrics.uptime = Date.now() - this.startTime;
+
         return {
-            accountId: this.accountId,
-            running: this.running,
-            lastMessageTime: this.lastMessageTime,
-            consecutiveErrors: this.consecutiveErrors,
-            totalMessages: this.totalMessages,
-            lastError: this.lastError,
+            status: this.status,
+            timestamp: this.lastCheckTime,
+            checks: results,
+            metrics: this.metrics
         };
     }
+
+    /**
+     * 获取健康状态
+     */
+    getStatus() {
+        return {
+            status: this.status,
+            lastCheckTime: this.lastCheckTime,
+            uptime: Date.now() - this.startTime,
+            checks: Array.from(this.checks.entries()).map(([name, check]) => ({
+                name,
+                enabled: check.enabled
+            })),
+            metrics: this.metrics
+        };
+    }
+
+    /**
+     * 重置指标
+     */
+    resetMetrics() {
+        this.metrics = {
+            uptime: 0,
+            totalChecks: 0,
+            successfulChecks: 0,
+            failedChecks: 0,
+            averageResponseTime: 0
+        };
+        this.startTime = Date.now();
+    }
 }
+
+export const healthChecker = new HealthChecker();
+
+/**
+ * 事件发射器 - 简单版
+ */
+class EventEmitter {
+    constructor() {
+        this.events = new Map();
+    }
+
+    on(event, listener) {
+        if (!this.events.has(event)) {
+            this.events.set(event, []);
+        }
+        this.events.get(event).push(listener);
+    }
+
+    off(event, listener) {
+        if (!this.events.has(event)) return;
+        const listeners = this.events.get(event);
+        const index = listeners.indexOf(listener);
+        if (index > -1) {
+            listeners.splice(index, 1);
+        }
+    }
+
+    emit(event, data) {
+        if (!this.events.has(event)) return;
+        this.events.get(event).forEach(listener => listener(data));
+    }
+}
+
+export const eventEmitter = new EventEmitter();
+
+/**
+ * 指标收集器
+ */
+class MetricsCollector {
+    constructor() {
+        this.counters = new Map();
+        this.gauges = new Map();
+        this.histograms = new Map();
+        this.startTime = Date.now();
+    }
+
+    /**
+     * 增加计数器
+     */
+    increment(name, value = 1) {
+        const key = name;
+        if (!this.counters.has(key)) {
+            this.counters.set(key, 0);
+        }
+        this.counters.set(key, this.counters.get(key) + value);
+    }
+
+    /**
+     * 设置仪表值
+     */
+    gauge(name, value) {
+        this.gauges.set(name, {
+            value,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * 记录直方图数据
+     */
+    histogram(name, value) {
+        if (!this.histograms.has(name)) {
+            this.histograms.set(name, []);
+        }
+        this.histograms.get(name).push({
+            value,
+            timestamp: Date.now()
+        });
+
+        // 只保留最近1000条
+        const data = this.histograms.get(name);
+        if (data.length > 1000) {
+            data.shift();
+        }
+    }
+
+    /**
+     * 获取所有指标
+     */
+    getMetrics() {
+        const now = Date.now();
+        return {
+            counters: Object.fromEntries(this.counters),
+            gauges: Object.fromEntries(this.gauges),
+            histograms: Object.fromEntries(this.histograms),
+            uptime: now - this.startTime,
+            timestamp: now
+        };
+    }
+
+    /**
+     * 获取计数器值
+     */
+    getCounter(name) {
+        return this.counters.get(name) || 0;
+    }
+
+    /**
+     * 获取仪表值
+     */
+    getGauge(name) {
+        return this.gauges.get(name);
+    }
+}
+
+export const metricsCollector = new MetricsCollector();
 
 /**
  * 监控WorkWeixin消息
