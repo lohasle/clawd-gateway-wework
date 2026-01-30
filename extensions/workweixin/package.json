@@ -1,0 +1,11 @@
+{
+  "name": "@clawdbot/workweixin",
+  "version": "2026.1.30",
+  "type": "module",
+  "description": "Clawdbot WorkWeixin (Enterprise WeChat) channel plugin",
+  "clawdbot": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

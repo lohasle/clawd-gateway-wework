@@ -1,0 +1,10 @@
+{
+  "id": "workweixin",
+  "name": "WorkWeixin",
+  "description": "Enterprise WeChat channel plugin",
+  "version": "2026.1.30",
+  "main": "./index.ts",
+  "clawdbot": {
+    "extensions": ["./index.ts"]
+  }
+}
