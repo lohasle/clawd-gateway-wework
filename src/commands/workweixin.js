@@ -277,3 +277,309 @@ export async function resetMetrics(logger) {
         message: "Metrics reset",
     };
 }
+
+/**
+ * 删除账户
+ */
+export async function deleteWorkWeixinAccount(args, config, logger) {
+    const { accountId } = args;
+
+    if (!accountId) {
+        throw new Error("Missing required flag: --account-id");
+    }
+
+    const currentConfig = config.channels?.workweixin || {};
+    const accounts = currentConfig.accounts || {};
+
+    if (!accounts[accountId]) {
+        return {
+            success: false,
+            message: `Account "${accountId}" not found`,
+        };
+    }
+
+    delete accounts[accountId];
+
+    output(logger, 'info', `Account "${accountId}" deleted`);
+
+    return {
+        success: true,
+        accountId,
+        message: "Account deleted",
+        config: {
+            ...config,
+            channels: {
+                ...config.channels,
+                workweixin: {
+                    ...currentConfig,
+                    accounts,
+                },
+            },
+        },
+    };
+}
+
+/**
+ * 启用/禁用账户
+ */
+export async function setAccountEnabled(args, config, logger) {
+    const { accountId, enabled } = args;
+
+    if (!accountId) {
+        throw new Error("Missing required flag: --account-id");
+    }
+
+    if (typeof enabled !== "boolean") {
+        throw new Error("Missing required flag: --enabled (true/false)");
+    }
+
+    const currentConfig = config.channels?.workweixin || {};
+    const accounts = currentConfig.accounts || {};
+
+    if (accountId === "default") {
+        currentConfig.enabled = enabled;
+    } else {
+        if (!accounts[accountId]) {
+            return {
+                success: false,
+                message: `Account "${accountId}" not found`,
+            };
+        }
+        accounts[accountId] = {
+            ...accounts[accountId],
+            enabled,
+        };
+    }
+
+    output(logger, 'info', `Account "${accountId}" ${enabled ? 'enabled' : 'disabled'}`);
+
+    return {
+        success: true,
+        accountId,
+        enabled,
+        config: {
+            ...config,
+            channels: {
+                ...config.channels,
+                workweixin: {
+                    ...currentConfig,
+                    accounts,
+                },
+            },
+        },
+    };
+}
+
+/**
+ * 导出配置
+ */
+export async function exportConfig(config, logger) {
+    const accountIds = listWorkWeixinAccountIds(config);
+    const exported = {
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        channel: "workweixin",
+        accounts: [],
+    };
+
+    for (const accountId of accountIds) {
+        const account = resolveWorkWeixinAccount({ cfg: config, accountId });
+        exported.accounts.push({
+            accountId: account.accountId,
+            name: account.name,
+            enabled: account.enabled,
+            config: {
+                dmPolicy: account.config.dmPolicy,
+                groupPolicy: account.config.groupPolicy,
+                allowFrom: account.config.allowFrom,
+                // 不导出敏感信息
+            },
+        });
+    }
+
+    output(logger, 'info', `Exported ${exported.accounts.length} accounts`);
+
+    return exported;
+}
+
+/**
+ * 导入配置
+ */
+export async function importConfig(args, config, logger) {
+    const { file } = args;
+
+    if (!file) {
+        throw new Error("Missing required flag: --file");
+    }
+
+    // 读取配置文件
+    let importData;
+    try {
+        const fs = await import("fs");
+        const content = fs.readFileSync(file, "utf-8");
+        importData = JSON.parse(content);
+    } catch (err) {
+        throw new Error(`Failed to read import file: ${err.message}`);
+    }
+
+    if (importData.channel !== "workweixin") {
+        throw new Error("Invalid config file for workweixin channel");
+    }
+
+    const currentConfig = config.channels?.workweixin || {};
+    const accounts = currentConfig.accounts || {};
+
+    let imported = 0;
+    for (const acc of importData.accounts || []) {
+        accounts[acc.accountId] = {
+            ...accounts[acc.accountId],
+            name: acc.name,
+            enabled: acc.enabled || true,
+            dmPolicy: acc.config?.dmPolicy || "pairing",
+            groupPolicy: acc.config?.groupPolicy || "allowlist",
+            allowFrom: acc.config?.allowFrom || [],
+        };
+        imported++;
+    }
+
+    output(logger, 'info', `Imported ${imported} accounts`);
+
+    return {
+        success: true,
+        imported,
+        config: {
+            ...config,
+            channels: {
+                ...config.channels,
+                workweixin: {
+                    ...currentConfig,
+                    accounts,
+                },
+            },
+        },
+    };
+}
+
+/**
+ * 监听消息
+ */
+export async function listenMessages(args, config, logger) {
+    const { accountId, outputFormat } = args;
+
+    const targetAccountId = accountId || resolveDefaultWorkWeixinAccountId(config);
+    const account = resolveWorkWeixinAccount({ cfg: config, accountId: targetAccountId });
+
+    if (!account.config.corpId && !process.env.WORKWEIXIN_CORP_ID) {
+        throw new Error(`WorkWeixin not configured for account: ${targetAccountId}`);
+    }
+
+    output(logger, 'info', `Starting message listener for account: ${targetAccountId}`);
+    output(logger, 'info', `Press Ctrl+C to stop`);
+
+    // 设置消息接收处理器
+    messageReceiver.on("text", async (message) => {
+        const outputData = outputFormat === "json"
+            ? JSON.stringify(message, null, 2)
+            : `[${message.createTime}] ${message.fromUser}: ${message.content}`;
+
+        output(logger, 'info', outputData);
+    });
+
+    return {
+        success: true,
+        accountId: targetAccountId,
+        message: "Message listener started. Press Ctrl+C to stop.",
+    };
+}
+
+/**
+ * 群发消息
+ */
+export async function broadcastMessage(args, config, logger) {
+    const { message, toUsers, toParties, toTags, accountId } = args;
+
+    if (!message) {
+        throw new Error("Missing required flag: --message");
+    }
+    if (!toUsers && !toParties && !toTags) {
+        throw new Error("At least one of --to-users, --to-parties, or --to-tags is required");
+    }
+
+    const targetAccountId = accountId || resolveDefaultWorkWeixinAccountId(config);
+    const account = resolveWorkWeixinAccount({ cfg: config, accountId: targetAccountId });
+
+    const corpId = account.config.corpId || process.env.WORKWEIXIN_CORP_ID;
+    const corpSecret = account.config.corpSecret || process.env.WORKWEIXIN_CORP_SECRET;
+    const agentId = account.config.agentId || process.env.WORKWEIXIN_AGENT_ID;
+
+    const result = await sendBatchMessages([
+        ...(toUsers ? toUsers.split(",").map(u => ({ toUser: u.trim(), text: message })) : []),
+        ...(toParties ? toParties.split(",").map(p => ({ toParty: p.trim(), text: message })) : []),
+        ...(toTags ? toTags.split(",").map(t => ({ toTag: t.trim(), text: message })) : []),
+    ], { corpId, corpSecret, agentId });
+
+    output(logger, 'info', `Broadcast complete: ${result.success}/${result.total} sent`);
+
+    return result;
+}
+
+/**
+ * 获取帮助信息
+ */
+export async function getHelp() {
+    return {
+        channel: "workweixin",
+        commands: [
+            {
+                name: "add",
+                description: "Add WorkWeixin account",
+                usage: "clawdbot channels add workweixin --corp-id XXX --corp-secret XXX --agent-id XXX [--name XXX]",
+            },
+            {
+                name: "status",
+                description: "Show channel status",
+                usage: "clawdbot channels status workweixin",
+            },
+            {
+                name: "list",
+                description: "List all accounts",
+                usage: "clawdbot channels list workweixin",
+            },
+            {
+                name: "send",
+                description: "Send message",
+                usage: "clawdbot send workweixin --to userId --message 'Hello'",
+            },
+            {
+                name: "test",
+                description: "Test connection",
+                usage: "clawdbot channels test workweixin [--account default]",
+            },
+            {
+                name: "queue",
+                description: "Show queue status",
+                usage: "clawdbot channels queue workweixin",
+            },
+            {
+                name: "health",
+                description: "Show health status",
+                usage: "clawdbot channels health workweixin",
+            },
+            {
+                name: "metrics",
+                description: "Show metrics",
+                usage: "clawdbot channels metrics workweixin",
+            },
+            {
+                name: "listen",
+                description: "Listen for messages",
+                usage: "clawdbot channels listen workweixin [--account default] [--output json]",
+            },
+            {
+                name: "broadcast",
+                description: "Broadcast message to users/parties/tags",
+                usage: "clawdbot channels broadcast workweixin --message 'Hello' --to-users user1,user2",
+            },
+        ],
+    };
+}
