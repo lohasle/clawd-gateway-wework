@@ -3,23 +3,249 @@
 
 const WORKWEIXIN_API_BASE = "https://qyapi.weixin.qq.com";
 
+// 日志函数
+let log = { info: console.log, debug: console.log, warn: console.log, error: console.error };
+export function setLogger(customLog) {
+    log = customLog;
+}
+
+/**
+ * HTTP连接池管理
+ */
+class HttpConnectionPool {
+    constructor(options = {}) {
+        this.maxConnections = options.maxConnections || 10;
+        this.connections = new Map();
+        this.timeout = options.timeout || 30000;
+        this.stats = {
+            totalRequests: 0,
+            successfulRequests: 0,
+            failedRequests: 0,
+            avgResponseTime: 0
+        };
+    }
+
+    /**
+     * 获取或创建连接
+     */
+    getConnection(key) {
+        if (!this.connections.has(key)) {
+            if (this.connections.size >= this.maxConnections) {
+                // 移除最早的连接
+                const oldestKey = this.connections.keys().next().value;
+                this.connections.delete(oldestKey);
+                log?.debug(`[workweixin] Connection pool full, removed oldest: ${oldestKey}`);
+            }
+            this.connections.set(key, {
+                createdAt: Date.now(),
+                lastUsed: Date.now(),
+                useCount: 0
+            });
+        }
+
+        const conn = this.connections.get(key);
+        conn.lastUsed = Date.now();
+        conn.useCount++;
+        return conn;
+    }
+
+    /**
+     * 执行HTTP请求（带连接管理）
+     */
+    async request(url, options = {}) {
+        const startTime = Date.now();
+        this.stats.totalRequests++;
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), options.timeout || this.timeout);
+
+            const res = await fetch(url, {
+                ...options,
+                signal: controller.signal,
+                headers: {
+                    "Content-Type": "application/json",
+                    ...options.headers
+                }
+            });
+
+            clearTimeout(timeoutId);
+
+            const responseTime = Date.now() - startTime;
+            this.updateAvgResponseTime(responseTime);
+            this.stats.successfulRequests++;
+
+            return res;
+        } catch (err) {
+            this.stats.failedRequests++;
+            throw err;
+        }
+    }
+
+    /**
+     * 更新平均响应时间
+     */
+    updateAvgResponseTime(newTime) {
+        const total = this.stats.successfulRequests;
+        this.stats.avgResponseTime = ((this.stats.avgResponseTime * (total - 1)) + newTime) / total;
+    }
+
+    /**
+     * 获取池状态
+     */
+    getStatus() {
+        return {
+            activeConnections: this.connections.size,
+            maxConnections: this.maxConnections,
+            stats: this.stats
+        };
+    }
+
+    /**
+     * 清理过期连接
+     */
+    cleanup(maxAge = 300000) { // 5分钟
+        const now = Date.now();
+        for (const [key, conn] of this.connections) {
+            if (now - conn.lastUsed > maxAge) {
+                this.connections.delete(key);
+                log?.debug(`[workweixin] Cleaned up idle connection: ${key}`);
+            }
+        }
+    }
+
+    /**
+     * 清空连接池
+     */
+    clear() {
+        this.connections.clear();
+        log?.info("[workweixin] Connection pool cleared");
+    }
+}
+
+export const connectionPool = new HttpConnectionPool({
+    maxConnections: 10,
+    timeout: 30000
+});
+
+/**
+ * 请求缓存 - 用于减少重复API调用
+ */
+class RequestCache {
+    constructor(options = {}) {
+        this.cache = new Map();
+        this.maxSize = options.maxSize || 100;
+        this.defaultTTL = options.defaultTTL || 60000; // 1分钟
+    }
+
+    /**
+     * 生成缓存key
+     */
+    generateKey(method, url, params = {}) {
+        const paramStr = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
+        return `${method}:${url}?${paramStr}`;
+    }
+
+    /**
+     * 获取缓存
+     */
+    get(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+
+        if (Date.now() > entry.expiresAt) {
+            this.cache.delete(key);
+            return null;
+        }
+
+        entry.hitCount++;
+        return entry.data;
+    }
+
+    /**
+     * 设置缓存
+     */
+    set(key, data, ttl = this.defaultTTL) {
+        if (this.cache.size >= this.maxSize) {
+            // 移除最少使用的条目
+            let minHit = Infinity;
+            let minKey = null;
+            for (const [k, v] of this.cache) {
+                if (v.hitCount < minHit) {
+                    minHit = v.hitCount;
+                    minKey = k;
+                }
+            }
+            if (minKey) this.cache.delete(minKey);
+        }
+
+        this.cache.set(key, {
+            data,
+            expiresAt: Date.now() + ttl,
+            createdAt: Date.now(),
+            hitCount: 0
+        });
+    }
+
+    /**
+     * 获取缓存状态
+     */
+    getStatus() {
+        return {
+            size: this.cache.size,
+            maxSize: this.maxSize,
+            entries: Array.from(this.cache.entries()).map(([k, v]) => ({
+                key: k.substring(0, 50) + (k.length > 50 ? '...' : ''),
+                hitCount: v.hitCount,
+                expiresAt: v.expiresAt
+            }))
+        };
+    }
+
+    /**
+     * 清空缓存
+     */
+    clear() {
+        this.cache.clear();
+    }
+}
+
+export const requestCache = new RequestCache({
+    maxSize: 100,
+    defaultTTL: 30000
+});
+
 /**
  * 获取access_token
  */
 export async function getAccessToken(corpId, corpSecret) {
+    const cacheKey = requestCache.generateKey('GET', '/cgi-bin/gettoken', { corpId });
+
+    // 尝试从缓存获取
+    const cached = requestCache.get(cacheKey);
+    if (cached) {
+        log?.debug(`[workweixin] Using cached access token`);
+        return cached;
+    }
+
     const url = `${WORKWEIXIN_API_BASE}/cgi-bin/gettoken?corpid=${encodeURIComponent(corpId)}&corpsecret=${encodeURIComponent(corpSecret)}`;
-    
-    const res = await fetch(url);
+
+    const res = await connectionPool.request(url, { method: "GET" });
     const data = await res.json();
-    
+
     if (data.errcode !== 0) {
         throw new Error(`Failed to get access_token: ${data.errmsg} (code: ${data.errcode})`);
     }
-    
-    return {
+
+    const result = {
         accessToken: data.access_token,
         expiresIn: data.expires_in,
     };
+
+    // 缓存access_token (缓存时间比过期时间短)
+    requestCache.set(cacheKey, result, (data.expires_in - 120) * 1000);
+
+    return result;
 }
 
 /**
