@@ -44,7 +44,18 @@ export async function sendAppMessage(accessToken, options) {
         btnText,
         safe = 0,
     } = options;
-    
+
+    // 输入验证
+    if (!accessToken || typeof accessToken !== "string") {
+        throw new Error("Invalid access token");
+    }
+    if (!agentId) {
+        throw new Error("Agent ID is required");
+    }
+    if (!toUser && !toParty && !toTag) {
+        throw new Error("At least one of toUser, toParty, or toTag must be provided");
+    }
+
     const messageBody = {
         touser: toUser,
         toparty: toParty,
@@ -76,9 +87,9 @@ export async function sendAppMessage(accessToken, options) {
             },
         }),
     };
-    
+
     const url_send = `${WORKWEIXIN_API_BASE}/cgi-bin/message/send?access_token=${encodeURIComponent(accessToken)}`;
-    
+
     const res = await fetch(url_send, {
         method: "POST",
         headers: {
@@ -86,13 +97,13 @@ export async function sendAppMessage(accessToken, options) {
         },
         body: JSON.stringify(messageBody),
     });
-    
+
     const data = await res.json();
-    
+
     if (data.errcode !== 0) {
         throw new Error(`Failed to send message: ${data.errmsg} (code: ${data.errcode})`);
     }
-    
+
     return {
         msgId: data.msgid,
         invalidUser: data.invaliduser,

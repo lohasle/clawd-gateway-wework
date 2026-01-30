@@ -21,7 +21,9 @@ import { getWorkWeixinRuntime } from "./runtime.js";
 
 const meta = getChatChannelMeta("workweixin");
 
-// 企微消息动作适配器
+/**
+ * 企微消息动作适配器 - 支持回复功能
+ */
 const workWeixinMessageActions: ChannelMessageActionAdapter = {
   listActions: (ctx) => {
     const actions = [{ id: "reply", label: "Reply", icon: "reply" }];
@@ -44,6 +46,33 @@ const workWeixinMessageActions: ChannelMessageActionAdapter = {
   },
 };
 
+/**
+ * 验证账号配置是否完整
+ */
+function validateAccountConfig(account: ResolvedWorkWeixinAccount): void {
+  if (!account.config.corpId?.trim()) {
+    throw new Error(`Account ${account.accountId}: corpId is required`);
+  }
+  if (!account.config.corpSecret?.trim()) {
+    throw new Error(`Account ${account.accountId}: corpSecret is required`);
+  }
+  if (!account.config.agentId) {
+    throw new Error(`Account ${account.accountId}: agentId is required`);
+  }
+}
+
+/**
+ * 验证目标用户ID格式
+ */
+function validateTargetUserId(target: string): void {
+  if (!target || target.trim().length === 0) {
+    throw new Error("Target user ID cannot be empty");
+  }
+  if (target.length > 64) {
+    throw new Error(`Target user ID exceeds maximum length of 64 characters`);
+  }
+}
+
 export const workWeixinPlugin: ChannelPlugin<ResolvedWorkWeixinAccount> = {
   id: "workweixin",
   meta: {
@@ -56,11 +85,11 @@ export const workWeixinPlugin: ChannelPlugin<ResolvedWorkWeixinAccount> = {
     idLabel: "workweixinUserId",
     normalizeAllowEntry: (entry) => entry.replace(/^(workweixin|wx|weixin):/i, ""),
     notifyApproval: async ({ cfg, id }) => {
-      const config = getWorkWeixinRuntime().channel.workweixin.resolveWorkWeixinConfig(cfg);
-      if (!config?.corpId || !config?.corpSecret || !config?.agentId) {
-        throw new Error("WorkWeixin not configured");
-      }
-      await getWorkWeixinRuntime().channel.workweixin.sendMessageWorkWeixin(
+      const runtime = getWorkWeixinRuntime();
+      const config = runtime.channel.workweixin.resolveWorkWeixinConfig(cfg);
+      validateAccountConfig({ accountId: "default", config, name: null, enabled: true });
+      runtime.log?.info(`[workweixin] Approving pairing for user: ${id}`);
+      await runtime.channel.workweixin.sendMessageWorkWeixin(
         id, "配对已批准！您现在可以通过企微向Clawdbot发送消息。",
         config
       );
@@ -191,9 +220,10 @@ export const workWeixinPlugin: ChannelPlugin<ResolvedWorkWeixinAccount> = {
   outbound: {
     deliveryMode: "direct",
     chunker: (text, limit) => {
+      if (!text) return [];
       const chunks = [];
       const size = limit || 2000;
-      let remaining = text;
+      let remaining = String(text);
       while (remaining.length > size) {
         chunks.push(remaining.slice(0, size));
         remaining = remaining.slice(size);
@@ -204,12 +234,18 @@ export const workWeixinPlugin: ChannelPlugin<ResolvedWorkWeixinAccount> = {
     chunkerMode: "text",
     textChunkLimit: 2000,
     sendText: async ({ to, text, accountId }) => {
-      const send = getWorkWeixinRuntime().channel.workweixin.sendMessageWorkWeixin;
+      const runtime = getWorkWeixinRuntime();
+      validateTargetUserId(to);
+      if (!text || typeof text !== "string" || text.trim().length === 0) {
+        throw new Error("Message text cannot be empty");
+      }
+      runtime.log?.debug(`[workweixin] Sending message to user: ${to}, length: ${text.length}`);
+      const send = runtime.channel.workweixin.sendMessageWorkWeixin;
       const result = await send(to, text, { accountId: accountId ?? "default" });
       return { channel: "workweixin", ...result };
     },
     sendMedia: async () => {
-      throw new Error("Media not yet supported");
+      throw new Error("Media not yet supported - see media.js for implementation progress");
     },
   },
   status: {
@@ -248,8 +284,11 @@ export const workWeixinPlugin: ChannelPlugin<ResolvedWorkWeixinAccount> = {
   gateway: {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      ctx.log?.info(`[${account.accountId}] starting WorkWeixin provider`);
-      return getWorkWeixinRuntime().channel.workweixin.monitorWorkWeixinProvider({
+      ctx.log?.info(`[workweixin] Starting provider for account: ${account.accountId}`);
+      validateAccountConfig(account);
+      const runtime = getWorkWeixinRuntime();
+      ctx.log?.debug(`[workweixin] Account config validated for: ${account.accountId}`);
+      return runtime.channel.workweixin.monitorWorkWeixinProvider({
         corpId: account.config.corpId,
         corpSecret: account.config.corpSecret,
         agentId: account.config.agentId,
