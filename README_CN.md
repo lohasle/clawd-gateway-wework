@@ -243,15 +243,80 @@ npm run dev
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+3. 提交更改 (`git commit -m 'feat: add AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 创建 Pull Request
+
+详细指南请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+---
+
+## ❓ 常见问题 (FAQ)
+
+### 1. 如何获取企业微信的 CorpId 和 Secret？
+
+- 登录 [企业微信管理后台](https://work.weixin.qq.com/)
+- 在「我的企业」页面获取 CorpId
+- 在「应用管理」选择应用，获取 Secret 和 AgentId
+
+### 2. 回调 URL 配置失败怎么办？
+
+确保：
+- URL 使用 HTTPS 协议
+- 服务器端口为 443 或 80
+- Token 和 AES Key 与配置一致
+- 服务器可被公网访问
+
+### 3. 消息发送失败如何排查？
+
+```bash
+# 1. 测试连接
+clawdbot channels test workweixin
+
+# 2. 查看健康状态
+clawdbot channels health workweixin
+
+# 3. 查看队列状态
+clawdbot channels queue workweixin
+```
+
+常见原因：
+- Access Token 过期（自动刷新）
+- 用户不在允许列表
+- API 调用超过频率限制
+
+### 4. 如何配置多个企业微信账号？
+
+在 `config.yaml` 中：
+
+```yaml
+channels:
+  workweixin:
+    accounts:
+      default:
+        corpId: "corp_id_1"
+        corpSecret: "secret_1"
+        agentId: "agent_1"
+      company2:
+        corpId: "corp_id_2"
+        corpSecret: "secret_2"
+        agentId: "agent_2"
+```
+
+### 5. 如何启用调试日志？
+
+设置环境变量：
+
+```bash
+export LOG_LEVEL=debug
+export DEBUG=workweixin:*
+```
 
 ---
 
 ## 📄 许可证
 
-MIT License
+MIT License - 详见 [LICENSE](./LICENSE) 文件
 
 ---
 
@@ -259,7 +324,16 @@ MIT License
 
 - [GitHub 仓库](https://github.com/lohasle/clawd-gateway-wework)
 - [问题反馈](https://github.com/lohasle/clawd-gateway-wework/issues)
+- [更新日志](./CHANGELOG.md)
+- [安全策略](./SECURITY.md)
+- [企业微信 API 文档](https://developer.work.weixin.qq.com/document/)
 
 ---
 
-*最后更新: 2026-02-14*
+## ⭐ Star History
+
+如果这个项目对您有帮助，请给一个 ⭐ Star！
+
+---
+
+*最后更新: 2026-02-15*

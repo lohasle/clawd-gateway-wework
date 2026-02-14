@@ -1,0 +1,26 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 5%
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+ignore:
+  - "test/**/*"
+  - "dist/**/*"
+  - "**/*.d.ts"
+  - "**/*.test.ts"
+
+comment:
+  layout: "header, diff, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+github_checks:
+  annotations: true

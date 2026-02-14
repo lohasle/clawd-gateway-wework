@@ -3,21 +3,35 @@
   "version": "0.2.0",
   "description": "企业微信通道插件 - 通过企微机器人驱动Clawdbot",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "npx tsc src/workweixin/src/*.ts --outDir dist/workweixin --esModuleInterop --module ESNext --moduleResolution node --target ES2022 --skipLibCheck",
-    "dev": "npx tsc --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "test": "node --experimental-vm-modules test/run.js",
+    "test:coverage": "c8 npm test",
     "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.{js,ts,json}\"",
     "clean": "rm -rf dist",
-    "prepublish": "npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "version": "node -e \"console.log(require('./package.json').version)\"",
+    "audit": "npm audit --audit-level=moderate"
   },
   "keywords": [
     "clawdbot",
     "workweixin",
+    "wework",
     "enterprise-wechat",
+    "wechat-work",
+    "wecom",
     "plugin",
-    "messaging"
+    "messaging",
+    "chatbot",
+    "gateway",
+    "api",
+    "webhook",
+    "callback"
   ],
   "author": "lohasle",
   "license": "MIT",
@@ -32,12 +46,31 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "README_CN.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./workweixin": {
+      "import": "./dist/workweixin/index.js",
+      "types": "./dist/workweixin/index.d.ts"
+    }
+  },
   "dependencies": {
     "axios": "^1.6.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
     "eslint": "^8.57.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "prettier": "^3.0.0",
+    "c8": "^9.0.0"
   }
 }

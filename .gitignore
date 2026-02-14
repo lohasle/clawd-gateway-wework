@@ -7,8 +7,10 @@ pnpm-lock.yaml
 # Build outputs
 dist/
 build/
+out/
 *.js.map
 *.d.ts.map
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -28,6 +30,10 @@ env/
 *.swp
 *.swo
 *.sublime-*
+*.iml
+.project
+.classpath
+.settings/
 
 # OS
 .DS_Store
@@ -37,6 +43,7 @@ env/
 .Trashes
 Thumbs.db
 ehthumbs.db
+Desktop.ini
 
 # Logs
 logs/
@@ -44,27 +51,36 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
 # Environment
 .env
 .env.local
 .env.*.local
 *.env
+.envrc
 
 # Test coverage
 coverage/
 .nyc_output/
+.lib/
+*.lcov
 
 # Temporary files
 tmp/
 temp/
 *.tmp
 *.temp
+*.bak
+*.backup
 
 # Cache
 .cache/
 .parcel-cache/
 .eslintcache
+.npm
+.yarn
 
 # TypeScript
 *.tsbuildinfo
@@ -72,5 +88,17 @@ temp/
 # Secrets (never commit)
 *.pem
 *.key
+*.crt
 secrets/
 .secrets/
+credentials/
+*.credentials
+
+# Runtime state
+memory/
+*.state.json
+heartbeat-*.json
+
+# Generated files
+*.generated.*
+ai-survivor.html
