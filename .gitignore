@@ -1,4 +1,24 @@
-# Python
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python (for scripts)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,21 +28,37 @@ venv/
 env/
 .venv/
 
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
 # OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
 
 # Logs
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Test
+.test-output/
+junit.xml
+
+# Misc
+*.bak
+*.tmp
+*.temp
+.secrets/
