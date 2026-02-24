@@ -1,5 +1,44 @@
 # clawd-gateway-wework 迭代记录
 
+## 迭代 2026-02-25
+
+- **操作**: 项目深度优化
+- **任务**: 文档与配置完善
+
+### 本次改进
+
+#### 1. CONTRIBUTING.md 完善
+- 添加完整的贡献指南目录结构
+- 详细说明开发环境设置步骤
+- 添加代码规范和格式化要求
+- 引入 Conventional Commits 提交规范
+- 完善 Pull Request 流程和检查清单
+- 添加问题报告和功能请求指南
+
+#### 2. .gitignore 增强
+- 添加更多构建输出目录 (out/, .tsc/)
+- 完善 Python 相关忽略规则
+- 添加更多 IDE 支持文件
+- 添加归档文件和证书文件忽略
+- 添加内存/状态文件忽略规则
+
+#### 3. GitHub Actions CI 优化
+- 添加 develop 分支支持
+- 增加多操作系统测试 (Ubuntu, Windows, macOS)
+- 添加独立的 Coverage 检查任务
+- 添加 TypeScript 类型检查任务
+- 集成 Snyk 安全扫描
+- 优化测试覆盖率上传配置
+
+#### 4. COMPETITOR_ANALYSIS.md 更新
+- 更新竞品数据和 Stars 数量
+- 添加更详细的竞品对比分析
+- 新增 MCP 协议竞品分析
+- 完善市场定位和差异化优势
+- 添加未来发展路线图
+
+---
+
 ## 迭代 2026-02-06 15:29
 
 - **操作**: OpenClaw Bot 持续迭代

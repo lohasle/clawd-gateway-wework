@@ -2,21 +2,26 @@
 node_modules/
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 
 # Build output
 dist/
 build/
+out/
 *.tsbuildinfo
+.tsc/
 
 # Coverage
 coverage/
 .nyc_output/
 *.lcov
+lib-cov/
 
 # Environment
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Python (for scripts)
 __pycache__/
@@ -27,6 +32,9 @@ __pycache__/
 venv/
 env/
 .venv/
+*.egg-info/
+.eggs/
+eggs/
 
 # IDE
 .vscode/
@@ -34,11 +42,18 @@ env/
 *.swp
 *.swo
 *.sublime-*
+*.iml
+.project
+.classpath
+.settings/
 
 # OS
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
 ehthumbs.db
+Desktop.ini
 
 # Logs
 *.log
@@ -47,18 +62,76 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Cache
 .cache/
 .parcel-cache/
 .eslintcache
+.stylelintcache
+.tsbuildinfo
 
 # Test
 .test-output/
 junit.xml
+.nyc_output/
+test-results/
 
-# Misc
+# Temporary files
 *.bak
 *.tmp
 *.temp
+*.orig
+*.pid
+*.seed
+*.pid.lock
+
+# Secrets
 .secrets/
+*.pem
+*.key
+*.crt
+
+# Documentation
+_site/
+docs/_build/
+
+# Package manager
+.npm
+.yarn-integrity
+
+# TypeScript
+*.tsbuildinfo
+
+# Debug
+lib-cov
+grain.log
+
+# Memory/State files
+memory/
+*.state.json
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Archive files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Misc
+*.bak
+*.log
+*.sql
+*.sqlite
+*.sqlite3

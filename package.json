@@ -10,13 +10,16 @@
     "dev": "tsc --watch",
     "test": "node --experimental-vm-modules test/run.js",
     "test:coverage": "c8 npm test",
+    "test:watch": "node --experimental-vm-modules test/run.js --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.{js,ts,json}\"",
-    "clean": "rm -rf dist",
+    "format:check": "prettier --check \"src/**/*.{js,ts,json}\"",
+    "clean": "rm -rf dist coverage",
     "prepublishOnly": "npm run clean && npm run build",
     "version": "node -e \"console.log(require('./package.json').version)\"",
-    "audit": "npm audit --audit-level=moderate"
+    "audit": "npm audit --audit-level=moderate",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "clawdbot",
@@ -31,7 +34,9 @@
     "gateway",
     "api",
     "webhook",
-    "callback"
+    "callback",
+    "bot",
+    "ai-assistant"
   ],
   "author": "lohasle",
   "license": "MIT",
@@ -51,7 +56,10 @@
     "README.md",
     "README_CN.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md"
   ],
   "exports": {
     ".": {
